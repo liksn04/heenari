@@ -2,7 +2,7 @@
 
 작성일: 2026-09-22
 게이트: `docs/gates/HEENARI-FB-02-RESERVATION.md`
-상태: 코드·테스트·문서 완료. **에뮬레이터 Rules 테스트는 로컬 Java 부재로 차단(미실행).**
+상태: 완료. 로컬은 Java 부재로 Rules 에뮬레이터 테스트를 미실행했으나, **GitHub Actions CI(Java 17)에서 Rules 테스트 15개 전부 통과로 검증됨.**
 
 ## 결과
 
@@ -16,10 +16,12 @@
   표기하고, 충돌 시 선택을 보존하며 최신 상태를 재조회한다. 오프라인이면 확정을
   막는다.
 - Firestore Rules에 예약/슬롯 create·update·delete validator를 추가하고, indexes와
-  Rules 테스트(18케이스)를 확장했다.
+  Rules 테스트(15케이스)를 확장했다. **CI 에뮬레이터에서 15개 전부 통과.**
 - Firestore SDK를 정적 import로 끌어들이지 않도록 repository를 동적 import로
   리팩터해 메인 번들(≈126 KiB)과 Firestore 청크(≈549 KiB, 인증 후 지연 로드)를
   분리 유지했다.
+- GitHub Actions로 CI(lint·test·test:rules·build·bundle)와 Firebase Hosting 자동
+  배포(main 병합 시 live, PR 미리보기)를 구성했다.
 
 ## 변경 파일
 
@@ -52,6 +54,10 @@
 - `npm run check:bundle` — 통과 (최대 JS = 지연 로드 Firestore 청크 548.9 KiB < 600 KiB, 메인 126.3 KiB)
 - `git diff --check` — 깨끗
 
+CI (GitHub Actions `verify`, Node 22 + Java 17 — 전부 통과, run 35707124914):
+- `npm run lint` · `npm test`(120) · **`npm run test:rules` — 15 tests pass** · `npm run build` · `npm run check:bundle`
+- 로컬에서 막혔던 Firestore Rules 에뮬레이터 테스트가 CI에서 실제로 검증됨.
+
 모바일 QA (Vite 실제 렌더러, 360×800 / 390×844 / 430×932):
 - 가로 스크롤 없음(scrollWidth == innerWidth, app-frame 정확히 폭 일치)
 - 달력 날짜 셀 44–48px, 슬롯 52px, CTA 57px, 입력 16px(iOS 확대 방지)
@@ -61,24 +67,22 @@
 
 ## 생략한 검증과 사유
 
-- **`npm run test:rules` — 차단(미실행).** 로컬에 Java Runtime이 없어 Firestore
-  에뮬레이터를 기동할 수 없다. 실행 시 다음으로 실패:
-  `Process 'java -version' has exited with code 1. ... Unable to locate a Java Runtime.`
-  → `tests/firestore.rules.test.ts`는 작성 완료했으나 실행 검증은 하지 못했다.
-- 세션에 Firebase MCP validator가 없어 `firestore.rules` **구문의 로컬 검증도 불가**.
-  Rules 파일은 리뷰로만 확인했고 실제 컴파일/평가는 미검증 상태다.
-- **진짜 동시성("같은 슬롯 동시 요청 중 정확히 하나만 성공")**은 에뮬레이터가
-  있어야 재현 가능하다. 현재는 트랜잭션 로직의 충돌 검출을 mock으로 단위
-  검증했을 뿐, 실제 경쟁 조건은 미검증.
-- live 배포/commit/push는 문서 지침대로 미수행(별도 요청 없음).
+- **`npm run test:rules` — 로컬 미실행(Java 부재), CI에서 검증됨.** 로컬에는 Java
+  Runtime이 없어 에뮬레이터를 기동할 수 없다(`Unable to locate a Java Runtime`).
+  대신 CI `verify` 잡이 Java 17로 실행해 `tests/firestore.rules.test.ts` **15개
+  전부 통과**했다. `firestore.rules`의 컴파일·평가(getAfter/existsAfter,
+  `keys().hasOnly`, `toMillis()` 포함)가 실제로 검증됐다.
+- **진짜 동시성("같은 슬롯 동시 요청 중 정확히 하나만 성공")**은 별도 에뮬레이터
+  경쟁 테스트를 아직 작성하지 않았다. 트랜잭션 충돌 검출은 mock 단위 테스트로,
+  슬롯 결정적 문서 ID + Rules 스키마는 CI에서 검증했으나, 동시 create 레이스
+  자체를 재현하는 통합 테스트는 후속 과제다.
+- live 배포는 미수행. commit·push·PR은 사용자 요청으로 수행(아래 관련 커밋).
 
 ## 남은 리스크
 
-- Firestore Rules와 Rules 테스트가 **에뮬레이터에서 미검증**이다. Java가 있는
-  환경(CI 또는 로컬 JDK 설치)에서 `npm run test:rules`를 반드시 통과시켜야
-  게이트 DoD("Rules Emulator 테스트가 통과한다")를 충족한다. getAfter/existsAfter,
-  `keys().hasOnly`, `toMillis()` 산술 등은 구문 오류 가능성이 있으니 첫 실행에서
-  실패할 수 있음을 전제로 확인할 것.
+- (해소) Firestore Rules와 Rules 테스트는 CI `verify`에서 에뮬레이터로 검증돼
+  15개 전부 통과했다. 게이트 DoD "Rules Emulator 테스트가 통과한다"를 충족한다.
+  로컬에서 재현하려면 JDK 설치 후 `npm run test:rules`.
 - Rules 배포 전 원격 인덱스 생성이 필요하다(`reservations` 복합 인덱스 2종).
   인덱스 없이 쿼리하면 런타임 오류가 난다.
 - 예약 수정(시간 변경) 트랜잭션 로직·Rules는 구현했으나 이번 게이트 UI에는
@@ -89,11 +93,15 @@
 
 ## 다음 handoff
 
-- **선결(차단 해제):** Java 설치 환경에서 `npm run test:rules` 실행 → Rules/동시성
-  테스트 통과 확인, 실패 시 `firestore.rules` 수정. 필요하면 원격 인덱스 배포.
+- **배포 활성화:** 저장소 시크릿(`FIREBASE_SERVICE_ACCOUNT_HEENARI_9F2A6`,
+  `VITE_FIREBASE_*` 6종) 추가 후 PR 머지 → Firebase Hosting 자동 배포. Rules와
+  indexes는 Hosting과 별도 배포(`firebase deploy --only firestore`).
 - **HEENARI-FB-03 일정과 통합 홈:** 관리자 일정 CRUD + 회원 통합 일정 화면.
   관리자 권한(Custom Claims 등) 신뢰 소스 도입은 별도 보안 게이트.
 
 ## 관련 커밋
 
-- 아직 커밋하지 않음(사용자 요청 시 커밋). 기준 커밋: `2a31e4e feat: initialize Heenari mobile reservation app`
+- `35930d1` feat: HEENARI-FB-02 30분 예약 엔진 구현
+- `bf9f2e1` ci: GitHub Actions로 CI와 Firebase Hosting 자동 배포 구성
+- PR: [liksn04/heenari#1](https://github.com/liksn04/heenari/pull/1) (CI `verify` 통과)
+- 기준 커밋: `2a31e4e feat: initialize Heenari mobile reservation app`
