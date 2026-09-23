@@ -42,7 +42,7 @@
 - Firestore: `(default)`, Standard edition, `asia-northeast3`, free tier
 - Hosting live URL: `https://heenari-9f2a6.web.app`
 - 현재 배포물은 설치형 PWA다. FB-04(PWA·합주 초대·알림)는 배포됐고 알림 Worker(`notifier/`)도
-  운영 중이다(`docs/heenari-fb-04-closeout.md`). FB-05(홈 다음 합주·동아리 공지)는 코드 완료, 미배포.
+  운영 중이다(`docs/heenari-fb-04-closeout.md`). FB-05(홈 다음 합주·동아리 공지)도 배포됐다.
 - Google Auth: 활성화 및 실제 로그인·예약 생성까지 프로덕션에서 확인 완료
 - Authorized domains: `localhost`, `heenari-9f2a6.web.app`,
   `heenari-9f2a6.firebaseapp.com`

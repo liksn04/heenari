@@ -1,6 +1,6 @@
 # HEENARI-FB-05 — 홈 다음 합주·동아리 공지
 
-상태: 코드 완료, Rules·인덱스 배포와 머지 대기 (`docs/heenari-fb-05-closeout.md`)
+상태: 완료·배포(2026-09-24, PR #7) (`docs/heenari-fb-05-closeout.md`)
 선행 게이트: HEENARI-FB-04 PWA·합주 초대·알림(완료·배포, `docs/heenari-fb-04-closeout.md`)
 Source of truth: `docs/heenari-lite-capability.md`
 
