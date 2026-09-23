@@ -65,8 +65,9 @@ describe('planEntry — 동아리방 시간 지정은 슬롯 잠금 예약', () 
     expect(sameDay.kind === 'reservation' && sameDay.draft.slotIds).toEqual(['2026-10-02_23-30']);
   });
 
-  it('운영 시간·30분 경계·길이·하루 안 조건을 지킨다', () => {
-    expect(reason(() => planEntry(draft({ startTime: '08:30', endTime: '09:30' })))).toBe('room-hours');
+  it('새벽 포함 하루 안·30분 경계·길이 조건을 지킨다', () => {
+    expect(reason(() => planEntry(draft({ startTime: '00:00', endTime: '01:00' })))).toBeNull(); // 새벽
+    expect(reason(() => planEntry(draft({ startTime: '03:30', endTime: '04:30' })))).toBeNull();
     expect(reason(() => planEntry(draft({ startTime: '18:15' })))).toBe('room-hours');
     expect(reason(() => planEntry(draft({ endTime: '20:10' })))).toBe('room-hours');
     expect(reason(() => planEntry(draft({ endTime: '' })))).toBe('room-end');
@@ -165,10 +166,10 @@ describe('entryValidationMessage', () => {
 });
 
 describe('동아리방 30분 시간 선택지', () => {
-  it('시작은 09:00–23:30 30분 간격이다', () => {
-    expect(ROOM_START_TIMES).toHaveLength(30);
-    expect(ROOM_START_TIMES[0]).toBe('09:00');
-    expect(ROOM_START_TIMES[1]).toBe('09:30');
+  it('시작은 00:00–23:30 30분 간격이다', () => {
+    expect(ROOM_START_TIMES).toHaveLength(48);
+    expect(ROOM_START_TIMES[0]).toBe('00:00');
+    expect(ROOM_START_TIMES[1]).toBe('00:30');
     expect(ROOM_START_TIMES.at(-1)).toBe('23:30');
   });
 
@@ -206,7 +207,7 @@ describe('동아리방 30분 시간 선택지', () => {
     expect(snapToRoom(draft({ startTime: '18:10', endTime: '19:50', endDate: '2026-10-03' }))).toMatchObject({
       startTime: '18:00', endTime: '20:00', endDate: '2026-10-02',
     });
-    expect(snapToRoom(draft({ startTime: '07:00', endTime: '' }))).toMatchObject({ startTime: '09:00', endTime: '10:00' });
+    expect(snapToRoom(draft({ startTime: '07:10', endTime: '' }))).toMatchObject({ startTime: '07:00', endTime: '08:00' });
     expect(snapToRoom(draft({ startTime: '23:45', endTime: '23:50' }))).toMatchObject({ startTime: '23:30', endTime: '00:00' });
     expect(snapToRoom(draft({ startTime: '20:00', endTime: '19:00' }))).toMatchObject({ startTime: '20:00', endTime: '21:00' });
     expect(snapToRoom(draft({ startTime: '09:00', endTime: '15:00' }))).toMatchObject({ endTime: '15:00' }); // 기타는 유지

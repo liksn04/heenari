@@ -123,8 +123,8 @@ describe('EntrySheet 추가', () => {
     const start = screen.getByLabelText('시작 시각') as HTMLSelectElement;
     const end = screen.getByLabelText('종료 시각') as HTMLSelectElement;
     expect(start.tagName).toBe('SELECT');
-    expect([...start.options].map((option) => option.value).slice(0, 3)).toEqual(['09:00', '09:30', '10:00']);
-    expect(start.options).toHaveLength(30);
+    expect([...start.options].map((option) => option.value).slice(0, 3)).toEqual(['00:00', '00:30', '01:00']);
+    expect(start.options).toHaveLength(48);
     expect(screen.queryByLabelText('종료 날짜')).toBeNull();
 
     await user.selectOptions(start, '23:30');
@@ -145,7 +145,7 @@ describe('EntrySheet 추가', () => {
     expect([...end().options].map((option) => option.textContent)).toEqual(['18:30 (30분)', '19:00 (1시간)']);
 
     await user.click(screen.getByRole('button', { name: '강습' }));
-    expect(screen.getByText(/09:00–24:00 안에서 원하는 만큼/)).toBeTruthy();
+    expect(screen.getByText(/하루 안에서 원하는 만큼/)).toBeTruthy();
     expect(end().options).toHaveLength(12);
     expect(end().options[end().options.length - 1].textContent).toBe('24:00 (6시간)');
     await user.selectOptions(end(), '22:00');

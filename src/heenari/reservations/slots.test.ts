@@ -10,12 +10,12 @@ import {
 } from './slots';
 
 describe('slot generation', () => {
-  it('하루를 09:00부터 23:30까지 30분 슬롯으로 나눈다', () => {
+  it('하루를 00:00부터 23:30까지 30분 슬롯으로 나눈다', () => {
     const ids = generateSlotIds('2026-09-22');
     expect(ids).toHaveLength(SLOTS_PER_DAY);
-    expect(ids).toHaveLength(30);
-    expect(ids[0]).toBe('2026-09-22_09-00');
-    expect(ids[1]).toBe('2026-09-22_09-30');
+    expect(ids).toHaveLength(48);
+    expect(ids[0]).toBe('2026-09-22_00-00');
+    expect(ids[1]).toBe('2026-09-22_00-30');
     expect(ids.at(-1)).toBe('2026-09-22_23-30');
   });
 

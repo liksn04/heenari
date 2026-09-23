@@ -2,9 +2,9 @@
 // 서울은 DST가 없으므로 UTC 인스턴트에 +9시간을 더해 벽시계 값을 읽는다.
 
 export const SLOT_MINUTES = 30;
-export const OPENING_MINUTE = 9 * 60; // 09:00
+export const OPENING_MINUTE = 0; // 00:00 — 새벽을 포함한 하루 전체 예약 가능
 export const CLOSING_MINUTE = 24 * 60; // 24:00
-export const SLOTS_PER_DAY = (CLOSING_MINUTE - OPENING_MINUTE) / SLOT_MINUTES; // 30
+export const SLOTS_PER_DAY = (CLOSING_MINUTE - OPENING_MINUTE) / SLOT_MINUTES; // 48
 export const SEOUL_OFFSET = '+09:00';
 const SEOUL_OFFSET_MS = 9 * 60 * 60 * 1000;
 

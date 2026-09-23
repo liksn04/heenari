@@ -245,7 +245,7 @@ export function EntrySheet({ mode, viewer, onClose, onSaved, onStale }: EntryShe
                     <Lock size={13} aria-hidden="true" />
                     {draft.tag === 'jam'
                       ? ' 합주는 30분 단위로 최대 1시간. 다른 일정과 시간이 겹치지 않게 잡아둬요.'
-                      : ' 30분 단위로 09:00–24:00 안에서 원하는 만큼. 다른 일정과 시간이 겹치지 않게 잡아둬요.'}
+                      : ' 30분 단위로 하루 안에서 원하는 만큼. 다른 일정과 시간이 겹치지 않게 잡아둬요.'}
                   </>
                 ) : draft.place === 'room' ? (
                   '종일 일정은 동아리방 시간을 잡아두지 않아요.'

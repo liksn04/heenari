@@ -17,7 +17,7 @@ describe('RESERVATION_POLICY', () => {
   it('고정 정책 값을 노출한다', () => {
     expect(RESERVATION_POLICY.slotMinutes).toBe(30);
     expect(RESERVATION_POLICY.minSlots).toBe(1);
-    expect(RESERVATION_POLICY.maxSlots).toBe(30); // 09:00–24:00 전체
+    expect(RESERVATION_POLICY.maxSlots).toBe(48); // 00:00–24:00 하루 전체
     expect(JAM_MAX_SLOTS).toBe(2); // 합주 1시간
     expect(RESERVATION_POLICY.bookingWindowDays).toBe(60);
     expect(RESERVATION_POLICY.timeZoneOffset).toBe('+09:00');
@@ -29,7 +29,8 @@ describe('isSlotAligned', () => {
     expect(isSlotAligned('2026-09-22_09-00')).toBe(true);
     expect(isSlotAligned('2026-09-22_09-30')).toBe(true);
     expect(isSlotAligned('2026-09-22_09-15')).toBe(false);
-    expect(isSlotAligned('2026-09-22_08-30')).toBe(false); // 운영 시간 이전
+    expect(isSlotAligned('2026-09-22_00-00')).toBe(true); // 새벽도 예약 가능
+    expect(isSlotAligned('2026-09-22_03-30')).toBe(true);
     expect(isSlotAligned('2026-09-22_24-00')).toBe(false); // 마감 경계는 시작 슬롯이 아님
   });
 });
@@ -39,9 +40,9 @@ describe('validateSlotSelection', () => {
     expect(validateSlotSelection(['2026-09-22_09-00'])).toBeNull();
   });
 
-  it('09:00–24:00 전체 30개 연속 슬롯을 허용한다', () => {
-    const ids = Array.from({ length: 30 }, (_, i) => {
-      const minute = 9 * 60 + i * 30;
+  it('00:00–24:00 하루 전체 48개 연속 슬롯을 허용한다', () => {
+    const ids = Array.from({ length: 48 }, (_, i) => {
+      const minute = i * 30;
       return `2026-09-22_${String(Math.floor(minute / 60)).padStart(2, '0')}-${String(minute % 60).padStart(2, '0')}`;
     });
     expect(validateSlotSelection(ids)).toBeNull();
@@ -51,8 +52,8 @@ describe('validateSlotSelection', () => {
     expect(validateSlotSelection([])).toBe('empty');
   });
 
-  it('30개를 넘는 선택을 거부한다', () => {
-    const ids = Array.from({ length: 31 }, (_, i) => `2026-09-22_x-${i}`);
+  it('하루(48개)를 넘는 선택을 거부한다', () => {
+    const ids = Array.from({ length: 49 }, (_, i) => `2026-09-22_x-${i}`);
     expect(validateSlotSelection(ids)).toBe('too-many');
   });
 
@@ -121,7 +122,7 @@ describe('태그', () => {
     expect(TAGS).toEqual(['jam', 'lesson', 'etc']);
     expect(TAG_LABELS).toEqual({ jam: '합주', lesson: '강습', etc: '기타' });
     expect(maxSlotsFor('jam')).toBe(2);
-    expect(maxSlotsFor('lesson')).toBe(30);
-    expect(maxSlotsFor('etc')).toBe(30);
+    expect(maxSlotsFor('lesson')).toBe(48);
+    expect(maxSlotsFor('etc')).toBe(48);
   });
 });
