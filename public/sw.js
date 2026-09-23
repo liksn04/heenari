@@ -1,8 +1,8 @@
 // 희나리 서비스 워커: 설치형 PWA 셸 캐시와 합주 푸시 알림 표시.
 // - Firebase Auth 핸들러(/__/), 외부 도메인(Firestore·Google 로그인), GET이 아닌 요청은 건드리지 않는다.
-// - 화면 이동은 네트워크 우선, 실패하면 마지막으로 받은 index.html을 보여준다(오프라인 예약은 앱이 막는다).
+// - 화면 이동은 네트워크 우선(브라우저 캐시도 거치지 않음), 실패하면 마지막 index.html을 보여준다(오프라인 예약은 앱이 막는다).
 // - 해시가 붙은 /assets/* 는 캐시 우선.
-const CACHE = 'heenari-v1';
+const CACHE = 'heenari-v2';
 const SHELL = '/index.html';
 
 self.addEventListener('install', (event) => {
@@ -29,7 +29,8 @@ function shouldHandle(request) {
 async function networkFirst(request) {
   const cache = await caches.open(CACHE);
   try {
-    const response = await fetch(request);
+    // 배포 직후에도 예전 페이지(예전 코드 파일)를 쓰지 않도록 서버에 매번 확인한다.
+    const response = await fetch(request, { cache: 'no-cache' });
     if (response.ok) cache.put(SHELL, response.clone());
     return response;
   } catch (error) {

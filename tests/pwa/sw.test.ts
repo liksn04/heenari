@@ -76,18 +76,20 @@ beforeEach(() => { sw = setup(); });
 
 describe('sw.js 캐시', () => {
   it('설치 때 앱 셸을 캐시하고, 활성화 때 이전 버전 캐시를 지운다', async () => {
-    sw.store.set('heenari-v0', new Map());
+    sw.store.set('heenari-v1', new Map()); // 예전 버전 캐시
     await sw.dispatch('install', {});
-    expect([...sw.store.get('heenari-v1')!.keys()]).toEqual([`${ORIGIN}/index.html`]);
+    expect([...sw.store.get('heenari-v2')!.keys()]).toEqual([`${ORIGIN}/index.html`]);
     expect(sw.self.skipWaiting).toHaveBeenCalled();
     await sw.dispatch('activate', {});
-    expect([...sw.store.keys()]).toEqual(['heenari-v1']);
+    expect([...sw.store.keys()]).toEqual(['heenari-v2']);
     expect(sw.clients.claim).toHaveBeenCalled();
   });
 
   it('화면 이동은 네트워크 우선이고, 오프라인이면 마지막 앱 셸을 보여준다', async () => {
     const online = await sw.dispatch('fetch', { request: sw.request('/schedule', { mode: 'navigate' }) });
     expect(online.responded?.body).toBe('network:/schedule');
+    // 배포 직후에도 예전 페이지를 쓰지 않도록 브라우저 캐시를 거치지 않고 서버에 확인한다.
+    expect(sw.fetchMock).toHaveBeenLastCalledWith(expect.objectContaining({ url: `${ORIGIN}/schedule` }), { cache: 'no-cache' });
     sw.fetchMock.mockRejectedValueOnce(new Error('offline'));
     const offline = await sw.dispatch('fetch', { request: sw.request('/me', { mode: 'navigate' }) });
     expect(offline.responded?.body).toBe('network:/schedule'); // 온라인일 때 저장한 셸

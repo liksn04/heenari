@@ -161,6 +161,9 @@ UI 변경은 최소 360×800, 390×844, 430×932에서 확인한다.
 - 사용자가 명시적으로 요청하지 않으면 live 배포하지 않는다.
 - 배포 전 production build를 새로 생성한다.
 - Firebase CLI는 `npx -y firebase-tools@latest` 형식을 사용한다.
+- `deploy --only firestore`는 **최신 `main`과 같은 폴더에서만** 실행한다. 오래된 폴더에서 배포하면
+  예전 Rules·인덱스가 운영에 올라간다(2026-09-23 실제로 발생, 재배포로 복구). 실행 전
+  `git log --oneline -1`이 `origin/main`과 같은지 확인한다.
 - 실제 Firebase 설정은 `.env.local`에만 두고 커밋하지 않는다.
 - Rules 배포 후 원격 Rules를 다시 읽어 로컬과 일치하는지 확인한다.
 
