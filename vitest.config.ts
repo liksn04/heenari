@@ -41,11 +41,6 @@ export default defineConfig({
         'src/heenari/schedule/entry.ts',
         'src/heenari/schedule/EntrySheet.tsx',
         'src/heenari/home/NextJamCard.tsx',
-        'src/heenari/notices/notice.ts',
-        'src/heenari/notices/noticeRepository.ts',
-        'src/heenari/notices/useNotices.ts',
-        'src/heenari/notices/NoticeSheet.tsx',
-        'src/heenari/notices/NoticeBoard.tsx',
       ],
       exclude: ['src/heenari/**/*.test.{ts,tsx}'],
       thresholds: {

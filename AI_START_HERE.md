@@ -42,7 +42,7 @@
 - Firestore: `(default)`, Standard edition, `asia-northeast3`, free tier
 - Hosting live URL: `https://heenari-9f2a6.web.app`
 - 현재 배포물은 설치형 PWA다. FB-04(PWA·합주 초대·알림)는 배포됐고 알림 Worker(`notifier/`)도
-  운영 중이다(`docs/heenari-fb-04-closeout.md`). FB-05(홈 다음 합주·동아리 공지)도 배포됐다.
+  운영 중이다(`docs/heenari-fb-04-closeout.md`). FB-05(홈 다음 합주)도 배포됐다. 동아리 공지는 만들었다가 사용자 요청으로 삭제했다.
 - Google Auth: 활성화 및 실제 로그인·예약 생성까지 프로덕션에서 확인 완료
 - Authorized domains: `localhost`, `heenari-9f2a6.web.app`,
   `heenari-9f2a6.firebaseapp.com`
@@ -123,7 +123,7 @@ tests/firestore.rules.test.ts     Emulator Rules 테스트
 
 ## 7. 활성 게이트
 
-활성 게이트는 `HEENARI-FB-05 홈 다음 합주·동아리 공지` 하나뿐이다.
+활성 게이트는 `HEENARI-FB-05 홈 다음 합주` 하나뿐이다.
 FB-02(예약 엔진), FB-03(예약·일정 통합, 태그), FB-04(PWA·합주 초대·알림)는 완료·배포됐다.
 
 구현 전에 반드시 읽을 문서:

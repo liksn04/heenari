@@ -13,7 +13,6 @@ import { buildTimeline } from './schedule/timeline';
 import { useDayTimeline, useNextJam } from './schedule/useScheduleData';
 import { NextJamCard } from './home/NextJamCard';
 import { useMembers } from './members/useMembers';
-import { NoticeBoard } from './notices/NoticeBoard';
 
 const TODAY_SUMMARY_LIMIT = 3;
 
@@ -43,12 +42,10 @@ export function HomePage() {
       <section className="welcome-block">
         <p className="eyebrow">{today}</p>
         <h1>{member?.name}님,<br />오늘도 반가워요.</h1>
-        <p>다가오는 합주와 동아리 소식을 확인해보세요.</p>
+        <p>다가오는 합주와 오늘 일정을 확인해보세요.</p>
       </section>
 
       <NextJamCard next={nextJam} names={members.names} />
-
-      <NoticeBoard variant="home" />
 
       <section className="section-block">
         <div className="section-heading">
@@ -112,14 +109,6 @@ export function HomePage() {
           </div>
         )}
       </section>
-    </div>
-  );
-}
-
-export function NoticesPage() {
-  return (
-    <div className="page-stack">
-      <NoticeBoard variant="page" />
     </div>
   );
 }

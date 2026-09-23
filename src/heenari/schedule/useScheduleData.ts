@@ -16,7 +16,7 @@ export interface Loaded<T> {
 }
 
 // key가 바뀌면 다시 불러오고, 늦게 도착한 이전 응답은 버린다.
-export function useLoader<T>(key: string, load: () => Promise<T>, empty: T): Loaded<T> {
+function useLoader<T>(key: string, load: () => Promise<T>, empty: T): Loaded<T> {
   const [state, setState] = useState<{ key: string; status: LoadStatus; data: T }>({ key, status: 'loading', data: empty });
 
   const refresh = useCallback(async () => {
