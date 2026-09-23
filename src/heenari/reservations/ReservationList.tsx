@@ -9,6 +9,7 @@ export function ReservationList({ viewer }: { viewer: { uid: string } }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
+  // 내가 잡은 예약만 취소한다. 초대받은 합주는 표시만 한다.
   async function handleCancel(id: string) {
     setBusyId(id);
     setMessage(null);
@@ -51,24 +52,30 @@ export function ReservationList({ viewer }: { viewer: { uid: string } }) {
     <>
       {message && <p className="form-message" role="status" data-tone="error">{message}</p>}
       <ul className="reservation-list" aria-label="내 동아리방 시간">
-        {reservations.map((reservation) => (
-          <li key={reservation.id} className="reservation-item">
-            <div className="reservation-info">
-              <p className="reservation-time">
-                {reservation.dayKey} · {timeLabelOf(reservation.startAt)}–{timeLabelOf(reservation.endAt)}
-              </p>
-              <strong>{reservation.title}</strong>
-            </div>
-            <button
-              type="button"
-              className="secondary-button compact"
-              disabled={busyId === reservation.id}
-              onClick={() => void handleCancel(reservation.id)}
-            >
-              {busyId === reservation.id ? '취소 중…' : '취소'}
-            </button>
-          </li>
-        ))}
+        {reservations.map((reservation) => {
+          const owned = reservation.ownerId === viewer.uid;
+          return (
+            <li key={reservation.id} className="reservation-item">
+              <div className="reservation-info">
+                <p className="reservation-time">
+                  {reservation.dayKey} · {timeLabelOf(reservation.startAt)}–{timeLabelOf(reservation.endAt)}
+                  {!owned && ' · 초대됨'}
+                </p>
+                <strong>{reservation.title}</strong>
+              </div>
+              {owned && (
+                <button
+                  type="button"
+                  className="secondary-button compact"
+                  disabled={busyId === reservation.id}
+                  onClick={() => void handleCancel(reservation.id)}
+                >
+                  {busyId === reservation.id ? '취소 중…' : '취소'}
+                </button>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </>
   );

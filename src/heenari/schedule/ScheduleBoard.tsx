@@ -5,6 +5,7 @@ import { startOfMonth } from '../reservations/calendar';
 import { ScheduleCalendar } from './ScheduleCalendar';
 import { ScheduleTimeline } from './ScheduleTimeline';
 import { EntrySheet, type EntrySheetMode } from './EntrySheet';
+import { useMembers } from '../members/useMembers';
 import { buildTimeline, dayLabel } from './timeline';
 import { useDayTimeline, useMonthEventDays } from './useScheduleData';
 import type { TimelineItem } from './types';
@@ -15,13 +16,18 @@ export interface ScheduleViewer {
   isAdmin: boolean;
 }
 
-export function ScheduleBoard({ viewer }: { viewer: ScheduleViewer }) {
+const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+// initialDay: 알림을 눌러 들어오면 /schedule?day=YYYY-MM-DD 의 날짜를 먼저 보여준다.
+export function ScheduleBoard({ viewer, initialDay }: { viewer: ScheduleViewer; initialDay?: string | null }) {
   const today = useMemo(() => dayKeyOf(new Date()), []);
-  const [selected, setSelected] = useState(today);
-  const [month, setMonth] = useState(() => startOfMonth(today));
+  const firstDay = initialDay && DAY_PATTERN.test(initialDay) ? initialDay : today;
+  const [selected, setSelected] = useState(firstDay);
+  const [month, setMonth] = useState(() => startOfMonth(firstDay));
   const [version, setVersion] = useState(0);
   const [sheet, setSheet] = useState<EntrySheetMode | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  const members = useMembers();
 
   const eventDays = useMonthEventDays(month, version);
   const day = useDayTimeline(selected, version);
@@ -69,7 +75,7 @@ export function ScheduleBoard({ viewer }: { viewer: ScheduleViewer }) {
           <CalendarPlus size={18} aria-hidden="true" /> 일정 추가
         </button>
 
-        {notice && <p className="form-message" role="status" data-tone="success">{notice}</p>}
+        {notice && <p className="form-message" role="status" data-tone={notice.tone}>{notice.text}</p>}
 
         <ScheduleTimeline
           items={items}
@@ -77,6 +83,7 @@ export function ScheduleBoard({ viewer }: { viewer: ScheduleViewer }) {
           viewerId={viewer.uid}
           onRetry={() => void day.refresh()}
           canOpen={canOpen}
+          names={members.names}
           onOpen={(item) => open(
             item.kind === 'event'
               ? { kind: 'edit-event', event: item.event }
@@ -92,7 +99,7 @@ export function ScheduleBoard({ viewer }: { viewer: ScheduleViewer }) {
           onClose={() => setSheet(null)}
           onSaved={(message) => {
             setSheet(null);
-            setNotice(message);
+            setNotice({ tone: 'success', text: message });
             setVersion((current) => current + 1);
           }}
           onStale={() => setVersion((current) => current + 1)}

@@ -22,6 +22,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+      - run: npm run check:notifier
       - run: npm run test:rules
       - run: npm run build
       - run: npm run check:bundle

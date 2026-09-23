@@ -25,7 +25,7 @@ service cloud.firestore {
     // 종일 일정: KST 00:00 시작(UTC 15:00 = 54_000_000ms), 종료 없음.
     // 시간 일정: 종료 없음 또는 시작 이후 72시간(259_200_000ms) 이내.
     function eventShape(e) {
-      return e.keys().hasOnly(['title', 'description', 'location', 'startAt', 'endAt', 'allDay', 'tag', 'createdBy', 'createdAt', 'updatedAt'])
+      return e.keys().hasOnly(['title', 'description', 'location', 'startAt', 'endAt', 'allDay', 'tag', 'participantIds', 'createdBy', 'createdAt', 'updatedAt'])
         && e.keys().hasAll(['title', 'description', 'location', 'startAt', 'endAt', 'allDay', 'createdBy', 'createdAt', 'updatedAt'])
         && e.title is string && e.title.size() >= 1 && e.title.size() <= 60
         && optionalText(e.description, 500)
@@ -34,12 +34,22 @@ service cloud.firestore {
         && e.allDay is bool
         && e.createdBy is string
         && validTag(e)
+        && validParticipants(e, e.createdBy)
         && (e.allDay
           ? (e.endAt == null && e.startAt.toMillis() % 86400000 == 54000000)
           : (e.endAt == null
             || (e.endAt is timestamp
               && e.endAt > e.startAt
               && e.endAt.toMillis() - e.startAt.toMillis() <= 259200000)));
+    }
+
+    // 합주 초대 참여자: 0..20명, 중복 없음, 작성자 제외. 없는 기존 문서도 허용한다.
+    function validParticipants(d, authorId) {
+      return !('participantIds' in d)
+        || (d.participantIds is list
+          && d.participantIds.size() <= 20
+          && d.participantIds.toSet().size() == d.participantIds.size()
+          && !d.participantIds.hasAny([authorId]));
     }
 
     // 태그: jam(합주)·lesson(강습)·etc(기타). 태그가 없는 기존 문서도 허용한다.
@@ -50,7 +60,7 @@ service cloud.firestore {
     // 30분 = 1_800_000ms. 운영 시간 09:00–24:00 = 최대 30슬롯(15시간).
     // 합주(jam)만 최대 1시간(2슬롯)이고 강습·기타는 길이 제한이 없다.
     function reservationShape(r) {
-      return r.keys().hasOnly(['title', 'note', 'ownerId', 'ownerName', 'startAt', 'endAt', 'dayKey', 'slotIds', 'tag', 'createdAt', 'updatedAt'])
+      return r.keys().hasOnly(['title', 'note', 'ownerId', 'ownerName', 'startAt', 'endAt', 'dayKey', 'slotIds', 'tag', 'participantIds', 'createdAt', 'updatedAt'])
         && r.title is string && r.title.size() >= 1 && r.title.size() <= 40
         && (r.note == null || (r.note is string && r.note.size() <= 200))
         && r.ownerId is string
@@ -61,6 +71,7 @@ service cloud.firestore {
         && r.startAt.toMillis() % 1800000 == 0
         && r.endAt.toMillis() - r.startAt.toMillis() == r.slotIds.size() * 1800000
         && validTag(r)
+        && validParticipants(r, r.ownerId)
         && (!('tag' in r) || r.tag != 'jam' || r.slotIds.size() <= 2);
     }
 
@@ -139,6 +150,55 @@ service cloud.firestore {
 
       allow delete: if verifiedGoogleUser()
         && (isOwner(resource.data.createdBy) || isAdmin());
+    }
+
+    // 회원 명부·프로필: 이름과 한줄소개(이메일 저장 안 함).
+    match /members/{uid} {
+      allow read: if verifiedGoogleUser();
+      allow create, update: if verifiedGoogleUser()
+        && isOwner(uid)
+        && request.resource.data.keys().hasOnly(['name', 'bio', 'updatedAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1 && request.resource.data.name.size() <= 60
+        && (!('bio' in request.resource.data) || optionalText(request.resource.data.bio, 60))
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+
+      // 푸시 토큰: 본인만. 알림 Worker는 IAM 권한으로 읽고 만료 토큰을 지운다.
+      match /devices/{deviceId} {
+        allow read, delete: if verifiedGoogleUser() && isOwner(uid);
+        allow create, update: if verifiedGoogleUser()
+          && isOwner(uid)
+          && request.resource.data.keys().hasOnly(['token', 'updatedAt'])
+          && request.resource.data.token is string
+          && request.resource.data.token.size() >= 1 && request.resource.data.token.size() <= 4096
+          && request.resource.data.updatedAt == request.time;
+      }
+    }
+
+    // 초대 알림 작업: 작성자가 같은 쓰기에서 만든 문서의 실제 참여자에게만. Worker가 처리 후 지운다.
+    function authorAfter(collection, docId) {
+      return collection == 'reservations'
+        ? getAfter(/databases/$(database)/documents/reservations/$(docId)).data.ownerId
+        : getAfter(/databases/$(database)/documents/events/$(docId)).data.createdBy;
+    }
+
+    match /pushJobs/{jobId} {
+      allow read, update, delete: if false;
+      allow create: if verifiedGoogleUser()
+        && request.resource.data.keys().hasOnly(['kind', 'collection', 'docId', 'targetIds', 'createdBy', 'createdAt'])
+        && request.resource.data.keys().hasAll(['kind', 'collection', 'docId', 'targetIds', 'createdBy', 'createdAt'])
+        && request.resource.data.kind == 'invite'
+        && request.resource.data.collection in ['reservations', 'events']
+        && request.resource.data.docId is string
+        && request.resource.data.docId.size() >= 1 && request.resource.data.docId.size() <= 128
+        && request.resource.data.targetIds is list
+        && request.resource.data.targetIds.size() >= 1 && request.resource.data.targetIds.size() <= 20
+        && isOwner(request.resource.data.createdBy)
+        && request.resource.data.createdAt == request.time
+        && existsAfter(/databases/$(database)/documents/$(request.resource.data.collection)/$(request.resource.data.docId))
+        && authorAfter(request.resource.data.collection, request.resource.data.docId) == request.auth.uid
+        && getAfter(/databases/$(database)/documents/$(request.resource.data.collection)/$(request.resource.data.docId)).data.participantIds.hasAll(request.resource.data.targetIds);
     }
 
     match /settings/{settingId} {

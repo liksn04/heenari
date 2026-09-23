@@ -12,6 +12,7 @@ export interface AuthContextValue {
   loginWithGoogle: (rememberMe: boolean) => Promise<void>;
   signOut: () => Promise<void>;
   clearNotice: () => void;
+  updateMemberName: (name: string) => void; // 프로필 저장 직후 화면 이름 반영
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

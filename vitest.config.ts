@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', 'tests/pwa/**/*.test.ts', 'notifier/src/**/*.test.ts'],
     environment: 'jsdom',
     coverage: {
       include: [
@@ -19,6 +19,18 @@ export default defineConfig({
         'src/heenari/reservations/ReservationList.tsx',
         'src/heenari/reservations/calendar.ts',
         'src/heenari/admin/adminAccess.ts',
+        'src/heenari/pwa/serviceWorker.ts',
+        'src/heenari/members/invites.ts',
+        'src/heenari/members/memberRepository.ts',
+        'src/heenari/members/useMembers.ts',
+        'src/heenari/members/InviteePicker.tsx',
+        'src/heenari/members/profile.ts',
+        'src/heenari/members/ProfileSheet.tsx',
+        'src/heenari/members/useMyProfile.ts',
+        'src/heenari/push/pushSupport.ts',
+        'src/heenari/push/pushRegistration.ts',
+        'src/heenari/push/AppSettings.tsx',
+        'src/heenari/pwa/installPrompt.ts',
         'src/heenari/schedule/eventPolicy.ts',
         'src/heenari/schedule/timeline.ts',
         'src/heenari/schedule/eventRepository.ts',

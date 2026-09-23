@@ -33,7 +33,7 @@ function reason(fn: () => unknown): string | null {
 describe('emptyEntryDraft', () => {
   it('동아리방·합주·선택일 18:00–19:00이 기본값이다', () => {
     expect(emptyEntryDraft('2026-10-02')).toEqual({
-      title: '', description: '', location: '', place: 'room', allDay: false, tag: 'jam',
+      title: '', description: '', location: '', place: 'room', allDay: false, tag: 'jam', participantIds: [],
       startDate: '2026-10-02', startTime: '18:00', endDate: '2026-10-02', endTime: '19:00',
     });
   });
@@ -47,6 +47,7 @@ describe('planEntry — 동아리방 시간 지정은 슬롯 잠금 예약', () 
         title: '합주',
         note: '드럼 세팅',
         tag: 'etc',
+        participantIds: [],
         slotIds: ['2026-10-02_18-00', '2026-10-02_18-30', '2026-10-02_19-00', '2026-10-02_19-30'],
       },
     });
@@ -82,6 +83,15 @@ describe('planEntry — 동아리방 시간 지정은 슬롯 잠금 예약', () 
     const lesson = planEntry(draft({ tag: 'lesson', startTime: '10:00', endTime: '22:00' }));
     expect(lesson.kind === 'reservation' && lesson.draft.slotIds).toHaveLength(24);
     expect(lesson.kind === 'reservation' && lesson.draft.tag).toBe('lesson');
+  });
+
+  it('초대한 회원은 합주일 때만 저장한다', () => {
+    const jam = planEntry(draft({ tag: 'jam', endTime: '19:00', participantIds: ['b', 'c'] }));
+    expect(jam.kind === 'reservation' && jam.draft.participantIds).toEqual(['b', 'c']);
+    const lesson = planEntry(draft({ tag: 'lesson', participantIds: ['b'] }));
+    expect(lesson.kind === 'reservation' && lesson.draft.participantIds).toEqual([]);
+    const outside = planEntry(draft({ tag: 'jam', place: 'other', participantIds: ['b'] }));
+    expect(outside.kind === 'event' && outside.draft.participantIds).toEqual(['b']);
   });
 
   it('다른 장소의 합주는 태그만 붙고 길이 제한을 두지 않는다', () => {
@@ -121,19 +131,19 @@ describe('수정용 초안', () => {
     const reservation: ReservationView = {
       id: 'r1', title: '합주', note: '메모', ownerId: 'u1', ownerName: '김희나',
       startAt: kstInstant('2026-10-02', '23:00'), endAt: kstInstant('2026-10-03', '00:00'),
-      dayKey: '2026-10-02', slotIds: ['2026-10-02_23-00', '2026-10-02_23-30'], tag: 'lesson',
+      dayKey: '2026-10-02', slotIds: ['2026-10-02_23-00', '2026-10-02_23-30'], tag: 'lesson', participantIds: [],
     };
     const back = draftFromReservation(reservation);
     expect(back).toMatchObject({ place: 'room', allDay: false, description: '메모', endTime: '00:00' });
     expect(back.tag).toBe('lesson');
-    expect(planEntry(back)).toEqual({ kind: 'reservation', draft: { title: '합주', note: '메모', tag: 'lesson', slotIds: reservation.slotIds } });
+    expect(planEntry(back)).toEqual({ kind: 'reservation', draft: { title: '합주', note: '메모', tag: 'lesson', participantIds: [], slotIds: reservation.slotIds } });
     expect(draftFromReservation({ ...reservation, tag: null }).tag).toBe('etc'); // 태그 없던 기존 예약은 기타
   });
 
   it('일정은 종일 동아리방만 동아리방으로, 나머지는 장소 이름 그대로 되돌린다', () => {
     const base: ClubEventView = {
       id: 'e1', title: '공연 준비', description: null, location: ROOM_NAME,
-      startAt: kstInstant('2026-10-02'), endAt: null, allDay: true, tag: null, createdBy: 'a',
+      startAt: kstInstant('2026-10-02'), endAt: null, allDay: true, tag: null, participantIds: [], createdBy: 'a',
     };
     expect(draftFromEventEntry(base)).toMatchObject({ place: 'room', location: '' });
     expect(planEntry(draftFromEventEntry(base)).kind).toBe('event');

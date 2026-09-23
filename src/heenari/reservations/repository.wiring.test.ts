@@ -9,6 +9,8 @@ const h = vi.hoisted(() => {
     nextId: () => `auto-${(autoId += 1)}`,
     resetId: () => { autoId = 0; },
     docsResult: { current: [] as { id: string; data(): Record<string, unknown> }[] },
+    participantDocs: { current: null as null | { id: string; data(): Record<string, unknown> }[] },
+    updates: [] as unknown[][],
   };
 });
 
@@ -28,7 +30,12 @@ vi.mock('firebase/firestore', () => ({
   where: (field: string, op: string, value: unknown) => ({ __where: [field, op, value] }),
   orderBy: (field: string, dir: string) => ({ __orderBy: [field, dir] }),
   query: (coll: unknown, ...clauses: unknown[]) => ({ __query: { coll, clauses } }),
-  getDocs: vi.fn(async () => ({ docs: h.docsResult.current })),
+  getDocs: vi.fn(async (q: { __query: { clauses: { __where?: unknown[] }[] } }) => {
+    const byParticipant = q.__query.clauses.some((clause) => clause.__where?.[1] === 'array-contains');
+    return { docs: byParticipant && h.participantDocs.current ? h.participantDocs.current : h.docsResult.current };
+  }),
+  updateDoc: vi.fn(async (...args: unknown[]) => { h.updates.push(args); }),
+  arrayRemove: (value: unknown) => ({ __arrayRemove: value }),
   runTransaction: async (_db: unknown, cb: (tx: unknown) => Promise<unknown>) => {
     const tx = {
       get: (ref: { id: string }) => {
@@ -63,6 +70,8 @@ beforeEach(() => {
   h.store.clear();
   h.resetId();
   h.docsResult.current = [];
+  h.participantDocs.current = null;
+  h.updates.length = 0;
 });
 
 describe('createReservation 배선', () => {
@@ -146,5 +155,35 @@ describe('쿼리 배선', () => {
     const views = await fetchMyUpcomingReservations('me', now);
     expect(views).toHaveLength(1);
     expect(views[0].id).toBe('res-2');
+  });
+});
+
+describe('합주 초대 배선', () => {
+  it('참여자를 넣어 예약하면 같은 트랜잭션에 초대 알림 작업을 만든다', async () => {
+    const id = await createReservation({
+      draft: { ...draft, tag: 'jam', participantIds: ['b', 'c'] },
+      ownerId: 'me',
+      ownerName: '김희나',
+      now,
+    });
+    expect(h.store.get(id)).toMatchObject({ participantIds: ['b', 'c'] });
+    const job = [...h.store.values()].find((value) => value.kind === 'invite');
+    expect(job).toEqual({ kind: 'invite', collection: 'reservations', docId: id, targetIds: ['b', 'c'], createdBy: 'me', createdAt: '__server' });
+  });
+
+  it('참여자가 없으면 알림 작업을 만들지 않는다', async () => {
+    await createReservation({ draft, ownerId: 'me', ownerName: '김희나', now });
+    expect([...h.store.values()].some((value) => value.kind === 'invite')).toBe(false);
+  });
+
+  it('내 예정 예약에는 내가 초대받은 예약도 시간순으로 합친다', async () => {
+    const view = (id: string, iso: string, ownerId: string) => ({
+      id,
+      data: () => ({ title: id, ownerId, ownerName: '김', dayKey: '2026-09-23', slotIds: [], startAt: { toDate: () => new Date(iso) }, endAt: { toDate: () => new Date(iso) } }),
+    });
+    h.docsResult.current = [view('mine-late', '2026-09-23T12:00:00.000Z', 'me')];
+    h.participantDocs.current = [view('invited-early', '2026-09-23T09:00:00.000Z', 'other'), view('mine-late', '2026-09-23T12:00:00.000Z', 'me')];
+    const views = await fetchMyUpcomingReservations('me', now);
+    expect(views.map((item) => item.id)).toEqual(['invited-early', 'mine-late']);
   });
 });

@@ -5,6 +5,8 @@ const h = vi.hoisted(() => ({
   docs: { current: [] as { id: string; data(): Record<string, unknown> }[] },
   calls: [] as { op: string; args: unknown[] }[],
   adminExists: { current: false },
+  existingEvent: { current: null as null | Record<string, unknown> },
+  autoId: { current: 0 },
 }));
 
 vi.mock('../lib/firebase', () => ({
@@ -15,7 +17,32 @@ vi.mock('firebase/firestore', () => ({
   Timestamp: { fromDate: (date: Date) => ({ toDate: () => date, __iso: date.toISOString() }) },
   serverTimestamp: () => '__server',
   collection: (_db: unknown, name: string) => ({ __collection: name }),
-  doc: (_db: unknown, name: string, id: string) => ({ __doc: `${name}/${id}` }),
+  doc: (first: unknown, name?: string, id?: string) => {
+    if (name === undefined) {
+      h.autoId.current += 1;
+      const coll = (first as { __collection: string }).__collection;
+      return { __doc: `${coll}/auto-${h.autoId.current}`, id: `auto-${h.autoId.current}` };
+    }
+    return { __doc: `${name}/${id}`, id };
+  },
+  arrayRemove: (value: unknown) => ({ __arrayRemove: value }),
+  writeBatch: () => {
+    const writes: unknown[][] = [];
+    return {
+      set: (ref: unknown, data: unknown) => writes.push([ref, data]),
+      commit: async () => { h.calls.push({ op: 'batch', args: writes }); },
+    };
+  },
+  runTransaction: async (_db: unknown, cb: (tx: unknown) => Promise<unknown>) => {
+    const writes: unknown[][] = [];
+    const tx = {
+      get: async () => ({ exists: () => h.existingEvent.current !== null, data: () => h.existingEvent.current }),
+      update: (ref: unknown, data: unknown) => writes.push(['update', ref, data]),
+      set: (ref: unknown, data: unknown) => writes.push(['set', ref, data]),
+    };
+    await cb(tx);
+    h.calls.push({ op: 'transaction', args: writes });
+  },
   where: (field: string, op: string, value: { __iso: string }) => ({ __where: [field, op, value.__iso] }),
   orderBy: (field: string, dir: string) => ({ __orderBy: [field, dir] }),
   limit: (count: number) => ({ __limit: count }),
@@ -58,6 +85,7 @@ const draft: EventDraft = {
   location: '동아리방',
   allDay: false,
   tag: 'lesson',
+  participantIds: [],
   startDate: '2026-10-02',
   startTime: '19:00',
   endDate: '2026-10-02',
@@ -72,16 +100,19 @@ beforeEach(() => {
   h.docs.current = [];
   h.calls.length = 0;
   h.adminExists.current = false;
+  h.existingEvent.current = null;
+  h.autoId.current = 0;
 });
 
 describe('mapEventSnapshot', () => {
   it('Timestamp를 Date로 정규화하고 누락 필드를 기본값으로 채운다', () => {
     const start = kstInstant('2026-10-02', '19:00');
     const view = mapEventSnapshot(snap('e1', { title: '모임', startAt: { toDate: () => start }, endAt: null, allDay: false, createdBy: 'a' }));
-    expect(view).toEqual({ id: 'e1', title: '모임', description: null, location: null, startAt: start, endAt: null, allDay: false, tag: null, createdBy: 'a' });
+    expect(view).toEqual({ id: 'e1', title: '모임', description: null, location: null, startAt: start, endAt: null, allDay: false, tag: null, participantIds: [], createdBy: 'a' });
     expect(mapEventSnapshot({ id: 'x', data: () => undefined }).allDay).toBe(false);
     expect(mapEventSnapshot({ id: 'x', data: () => ({ tag: 'jam' }) }).tag).toBe('jam');
     expect(mapEventSnapshot({ id: 'x', data: () => ({ tag: 'party' }) }).tag).toBeNull();
+    expect(mapEventSnapshot({ id: 'x', data: () => ({ participantIds: ['a', 3] }) }).participantIds).toEqual(['a']);
   });
 });
 
@@ -121,9 +152,11 @@ describe('fetchUpcomingEventCandidates', () => {
 describe('일정 쓰기', () => {
   it('createEvent는 검증된 필드와 createdBy, 서버 시각을 쓴다', async () => {
     const id = await createEvent(draft, 'admin-x');
-    expect(id).toBe('new-event');
-    const [coll, data] = h.calls[0].args as [unknown, Record<string, unknown>];
-    expect(coll).toEqual({ __collection: 'events' });
+    expect(id).toBe('auto-1');
+    expect(h.calls[0].op).toBe('batch');
+    expect(h.calls[0].args).toHaveLength(1); // 참여자가 없으면 일정만
+    const [ref, data] = h.calls[0].args[0] as [unknown, Record<string, unknown>];
+    expect(ref).toEqual({ __doc: 'events/auto-1', id: 'auto-1' });
     expect(data).toMatchObject({
       title: '정기 모임',
       description: null,
@@ -136,29 +169,62 @@ describe('일정 쓰기', () => {
     expect((data.startAt as { __iso: string }).__iso).toBe('2026-10-02T10:00:00.000Z');
     expect((data.endAt as { __iso: string }).__iso).toBe('2026-10-02T12:00:00.000Z');
     expect(data.tag).toBe('lesson');
-    expect(Object.keys(data).sort()).toEqual(['allDay', 'createdAt', 'createdBy', 'description', 'endAt', 'location', 'startAt', 'tag', 'title', 'updatedAt']);
+    expect(data.participantIds).toEqual([]);
+    expect(Object.keys(data).sort()).toEqual(['allDay', 'createdAt', 'createdBy', 'description', 'endAt', 'location', 'participantIds', 'startAt', 'tag', 'title', 'updatedAt']);
+  });
+
+  it('createEvent는 참여자가 있으면 같은 배치에 초대 알림 작업을 쓴다', async () => {
+    await createEvent({ ...draft, tag: 'jam', participantIds: ['b', 'me', 'c'] }, 'me');
+    const [[, event], [jobRef, job]] = h.calls[0].args as [unknown, Record<string, unknown>][];
+    expect(event.participantIds).toEqual(['b', 'c']);
+    expect((jobRef as { __doc: string }).__doc).toMatch(/^pushJobs\//);
+    expect(job).toEqual({ kind: 'invite', collection: 'events', docId: 'auto-1', targetIds: ['b', 'c'], createdBy: 'me', createdAt: '__server' });
   });
 
   it('검증에 실패하면 Firestore를 호출하지 않는다', async () => {
     await expect(createEvent({ ...draft, title: '' }, 'admin-x')).rejects.toBeInstanceOf(EventValidationError);
-    await expect(updateEvent('e1', { ...draft, endTime: '18:00' })).rejects.toBeInstanceOf(EventValidationError);
+    await expect(updateEvent('e1', { ...draft, endTime: '18:00' }, 'me')).rejects.toBeInstanceOf(EventValidationError);
     expect(h.calls).toHaveLength(0);
   });
 
   it('updateEvent는 createdBy·createdAt 없이 내용과 updatedAt만 갱신한다', async () => {
-    await updateEvent('e1', { ...draft, endTime: '' });
-    const [ref, data] = h.calls[0].args as [unknown, Record<string, unknown>];
-    expect(ref).toEqual({ __doc: 'events/e1' });
+    h.existingEvent.current = { createdBy: 'me', participantIds: [] };
+    await updateEvent('e1', { ...draft, endTime: '' }, 'me');
+    const [op, ref, data] = h.calls[0].args[0] as [string, unknown, Record<string, unknown>];
+    expect(op).toBe('update');
+    expect(ref).toEqual({ __doc: 'events/e1', id: 'e1' });
     expect(data.endAt).toBeNull();
     expect(data.updatedAt).toBe('__server');
     expect(data).not.toHaveProperty('createdBy');
     expect(data).not.toHaveProperty('createdAt');
   });
 
+  it('updateEvent는 작성자가 새로 초대한 회원에게만 알림 작업을 쓴다', async () => {
+    h.existingEvent.current = { createdBy: 'me', participantIds: ['b'] };
+    await updateEvent('e1', { ...draft, tag: 'jam', participantIds: ['b', 'c'] }, 'me');
+    const writes = h.calls[0].args as [string, unknown, Record<string, unknown>][];
+    expect(writes[0][2].participantIds).toEqual(['b', 'c']);
+    expect(writes[1][0]).toBe('set');
+    expect(writes[1][2]).toMatchObject({ collection: 'events', docId: 'e1', targetIds: ['c'], createdBy: 'me' });
+  });
+
+  it('관리자가 남의 일정을 고칠 때는 알림 작업을 쓰지 않는다(Rules가 작성자만 허용)', async () => {
+    h.existingEvent.current = { createdBy: 'owner', participantIds: [] };
+    await updateEvent('e1', { ...draft, tag: 'jam', participantIds: ['c'] }, 'admin');
+    const writes = h.calls[0].args as unknown[][];
+    expect(writes).toHaveLength(1);
+    expect((writes[0][2] as Record<string, unknown>).participantIds).toEqual(['c']);
+  });
+
+  it('없는 일정은 고칠 수 없다', async () => {
+    await expect(updateEvent('ghost', draft, 'me')).rejects.toThrow('일정을 찾을 수 없어요.');
+  });
+
   it('deleteEvent는 해당 문서를 지운다', async () => {
     await deleteEvent('e1');
-    expect(h.calls[0]).toEqual({ op: 'deleteDoc', args: [{ __doc: 'events/e1' }] });
+    expect(h.calls[0]).toEqual({ op: 'deleteDoc', args: [{ __doc: 'events/e1', id: 'e1' }] });
   });
+
 });
 
 describe('fetchIsAdmin', () => {
@@ -166,6 +232,6 @@ describe('fetchIsAdmin', () => {
     expect(await fetchIsAdmin('u1')).toBe(false);
     h.adminExists.current = true;
     expect(await fetchIsAdmin('u1')).toBe(true);
-    expect(h.calls.map((call) => call.args[0])).toEqual([{ __doc: 'admins/u1' }, { __doc: 'admins/u1' }]);
+    expect(h.calls.map((call) => call.args[0])).toEqual([{ __doc: 'admins/u1', id: 'u1' }, { __doc: 'admins/u1', id: 'u1' }]);
   });
 });

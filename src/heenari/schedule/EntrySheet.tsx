@@ -15,6 +15,8 @@ import {
 } from '../reservations/repository';
 import type { ReservationView } from '../reservations/types';
 import { createEvent, deleteEvent, updateEvent } from './eventRepository';
+import { useMembers } from '../members/useMembers';
+import { InviteePicker } from '../members/InviteePicker';
 import { eventValidationMessage, EventValidationError } from './eventPolicy';
 import {
   draftFromEventEntry,
@@ -78,7 +80,9 @@ export function EntrySheet({ mode, viewer, onClose, onSaved, onStale }: EntryShe
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const online = useOnlineStatus();
+  const members = useMembers();
   const editing = mode.kind !== 'create';
+
   const locksRoom = draft.place === 'room' && !draft.allDay;
 
   useEffect(() => {
@@ -128,7 +132,7 @@ export function EntrySheet({ mode, viewer, onClose, onSaved, onStale }: EntryShe
     if (mode.kind === 'edit-reservation' && plan.kind === 'reservation') {
       await rescheduleReservation({ reservationId: mode.reservation.id, viewerId: viewer.uid, draft: plan.draft });
     } else if (mode.kind === 'edit-event' && plan.kind === 'event') {
-      await updateEvent(mode.event.id, plan.draft);
+      await updateEvent(mode.event.id, plan.draft, viewer.uid);
     }
   }
 
@@ -196,6 +200,19 @@ export function EntrySheet({ mode, viewer, onClose, onSaved, onStale }: EntryShe
                 ))}
               </div>
             </div>
+
+            {draft.tag === 'jam' && (
+              <>
+                <InviteePicker
+                  members={members.members}
+                  status={members.status}
+                  selected={draft.participantIds}
+                  currentUserId={viewer.uid}
+                  onChange={(participantIds) => patch({ participantIds })}
+                />
+                <p className="field-hint">초대하면 바로 참여자가 되고 알림이 가요. 합주 1시간 전에도 함께 알려드려요.</p>
+              </>
+            )}
 
             <div className="field-block">
               <span id="entry-place-label">장소</span>

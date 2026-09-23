@@ -1,0 +1,11 @@
+{
+  "name": "heenari-notifier",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx -y wrangler@4 dev --test-scheduled",
+    "deploy": "npx -y wrangler@4 deploy",
+    "secret": "npx -y wrangler@4 secret put GOOGLE_SERVICE_ACCOUNT",
+    "tail": "npx -y wrangler@4 tail"
+  }
+}

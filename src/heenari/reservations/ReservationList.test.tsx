@@ -30,6 +30,7 @@ function view(id: string, title: string): ReservationView {
     dayKey: '2026-09-22',
     slotIds: ['2026-09-22_18-00', '2026-09-22_18-30'],
     tag: 'jam',
+    participantIds: [],
   };
 }
 
@@ -71,5 +72,12 @@ describe('ReservationList', () => {
 
     await user.click(screen.getByRole('button', { name: '취소' }));
     await waitFor(() => expect(screen.getByText(/취소하지 못했어요/)).toBeTruthy());
+  });
+
+  it('초대받은 합주는 초대됨으로 표시만 하고 취소·빠지기 버튼이 없다', () => {
+    h.state.current = { status: 'ready', reservations: [{ ...view('r2', '밴드 합주'), ownerId: 'other', participantIds: ['me'] }], error: null, refresh: h.refresh };
+    render(<ReservationList viewer={viewer} />);
+    expect(screen.getByText(/초대됨/)).toBeTruthy();
+    expect(screen.queryByRole('button')).toBeNull();
   });
 });

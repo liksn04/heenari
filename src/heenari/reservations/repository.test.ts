@@ -131,6 +131,20 @@ describe('document builders', () => {
       time,
     );
     expect(data.tag).toBe('jam');
+    expect(data.participantIds).toEqual([]); // 초대 없으면 빈 목록
+  });
+
+  it('참여자는 작성자·중복을 빼고 저장한다', () => {
+    const data = buildReservationData(
+      {
+        draft: { title: '합주', note: null, tag: 'jam', slotIds: ['2026-09-22_18-00'], participantIds: ['b', 'me', 'b', 'c'] },
+        ownerId: 'me',
+        ownerName: '김희나',
+        window: { startAt: new Date('2026-09-22T09:00:00.000Z'), endAt: new Date('2026-09-22T09:30:00.000Z'), dayKey: '2026-09-22' },
+      },
+      time,
+    );
+    expect(data.participantIds).toEqual(['b', 'c']);
   });
 
   it('슬롯 문서를 계약대로 만든다', () => {
@@ -168,8 +182,15 @@ describe('applyCreate', () => {
 
   it('슬롯이 하나라도 점유돼 있으면 아무것도 쓰지 않고 충돌을 던진다', async () => {
     const { tx, calls } = makeTx({ '2026-09-22_18-30': { reservationId: 'other' } });
-    await expect(applyCreate(tx, plan())).rejects.toBeInstanceOf(SlotConflictError);
+    await expect(applyCreate(tx, { ...plan(), inviteJob: { ref: ref('job-1'), data: { kind: 'invite' } } }))
+      .rejects.toBeInstanceOf(SlotConflictError);
     expect(calls.some((c) => c.op === 'set')).toBe(false);
+  });
+
+  it('초대 작업이 있으면 예약·슬롯과 같은 트랜잭션에 쓴다', async () => {
+    const { tx, existing } = makeTx({});
+    await applyCreate(tx, { ...plan(), inviteJob: { ref: ref('job-1'), data: { kind: 'invite', targetIds: ['b'] } } });
+    expect(existing['job-1']).toEqual({ kind: 'invite', targetIds: ['b'] });
   });
 });
 
@@ -224,6 +245,7 @@ describe('applyReschedule', () => {
     ownerId: 'me',
     slotIds: ['2026-09-22_18-00', '2026-09-22_18-30'],
     startAt: { toDate: () => new Date('2026-09-22T09:00:00.000Z') },
+    participantIds: ['a'],
   };
 
   const plan = (newSlotIds: string[]) => ({
@@ -266,6 +288,49 @@ describe('applyReschedule', () => {
 });
 
 // ---- applyDetailUpdate ------------------------------------------------------
+
+
+describe('applyReschedule 초대', () => {
+  const now = new Date('2026-09-22T00:00:00.000Z');
+  const existingRes = {
+    ownerId: 'me',
+    slotIds: ['2026-09-22_18-00'],
+    startAt: { toDate: () => new Date('2026-09-22T09:00:00.000Z') },
+    participantIds: ['a'],
+  };
+  const plan = (participantIds: string[]) => ({
+    reservationRef: ref('res-1'),
+    slotRef: (slotId: string) => ref(slotId),
+    viewerId: 'me',
+    now,
+    newSlotIds: ['2026-09-22_18-00'],
+    newParticipantIds: participantIds,
+    reservationUpdate: { participantIds },
+    slotData: (slotId: string) => ({ reservationId: 'res-1', slotId }),
+    inviteJob: (targetIds: string[]) => ({ ref: ref('job-1'), data: { kind: 'invite', targetIds } }),
+  });
+
+  it('새로 초대된 회원에게만 알림 작업을 쓴다', async () => {
+    const { tx, existing } = makeTx({ 'res-1': { ...existingRes }, '2026-09-22_18-00': { reservationId: 'res-1' } });
+    await applyReschedule(tx, plan(['a', 'b', 'c']));
+    expect(existing['job-1']).toEqual({ kind: 'invite', targetIds: ['b', 'c'] });
+  });
+
+  it('새 참여자가 없으면 알림 작업을 쓰지 않는다', async () => {
+    const { tx, existing } = makeTx({ 'res-1': { ...existingRes }, '2026-09-22_18-00': { reservationId: 'res-1' } });
+    await applyReschedule(tx, plan([]));
+    expect(existing['job-1']).toBeUndefined();
+  });
+
+  it('기존 문서에 참여자 필드가 없어도 모두 새 참여자로 본다', async () => {
+    const { tx, existing } = makeTx({
+      'res-1': { ...existingRes, participantIds: undefined },
+      '2026-09-22_18-00': { reservationId: 'res-1' },
+    });
+    await applyReschedule(tx, plan(['a']));
+    expect(existing['job-1']).toEqual({ kind: 'invite', targetIds: ['a'] });
+  });
+});
 
 describe('applyDetailUpdate', () => {
   const now = new Date('2026-09-22T00:00:00.000Z');
@@ -318,6 +383,7 @@ describe('mapReservationSnapshot', () => {
     });
     expect(view.startAt.toISOString()).toBe('2026-09-22T09:00:00.000Z');
     expect(view.tag).toBeNull(); // 태그가 없던 기존 예약
+    expect(view.participantIds).toEqual([]); // 참여자 필드가 없던 기존 예약
   });
 
   it('알려진 태그만 읽고 모르는 값은 null로 둔다', () => {

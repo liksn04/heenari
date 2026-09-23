@@ -2,8 +2,8 @@
 
 작성일: 2026-09-23
 게이트: `docs/gates/HEENARI-FB-03-SCHEDULE.md`
-상태: **완료(로컬).** 단위/UI 테스트·커버리지·빌드·번들·모바일 QA와 Rules 에뮬레이터
-테스트(29개)가 모두 통과했다. 커밋·원격 배포는 하지 않았다.
+상태: **완료, 배포됨.** 단위/UI 테스트·커버리지·빌드·번들·모바일 QA와 Rules 에뮬레이터
+테스트(39개)가 모두 통과했다. PR #3 머지 후 Hosting 자동 배포와 Firestore Rules 배포까지 마쳤다.
 
 ## 결과
 
@@ -124,7 +124,7 @@
 ## 생략한 검증과 사유
 
 - 실제 Firebase 프로젝트에서의 관리자 흐름(Console로 `admins` 문서 생성 → 앱 반영)은
-  Rules 미배포 상태라 확인하지 않았다.
+  확인하지 않았다(Rules는 배포됨, Console에서 `admins` 문서 생성 후 확인 필요).
 - 모바일 QA는 로그인 없이 화면을 띄우려고 인증·데이터 훅을 mock으로 바꾼 하네스에서
   했다. 레이아웃·상호작용은 실제 컴포넌트·CSS 그대로지만 Firestore 왕복은 포함되지 않는다.
 - 키보드가 열린 상태의 iOS 실기기 확인은 하지 않았다.
@@ -133,7 +133,8 @@
 
 ## 남은 리스크
 
-- Rules는 에뮬레이터로 검증했지만 원격 프로젝트에는 아직 배포되지 않았다.
+- Rules는 에뮬레이터 39개 통과 후 배포했다. 운영 환경에서 태그 예약·회원 일정 추가를 실제로
+  눌러 보는 확인은 아직 하지 않았다.
 - 관리자 판정마다 `exists()` 문서 읽기 1회가 추가된다(일정 쓰기 빈도가 낮아 무료 한도에
   영향 없음으로 판단).
 - 관리자 역할 표시는 로그인 시 1회 확인한다. Console에서 권한을 바꾸면 새로고침해야
@@ -155,5 +156,9 @@
 
 ## 관련 커밋
 
-- 아직 커밋하지 않았다(사용자 요청 없이 commit/push하지 않음).
+- `2a6fe98` feat: HEENARI-FB-03 예약·일정 통합 화면과 태그
+- PR: [liksn04/heenari#3](https://github.com/liksn04/heenari/pull/3) — CI `verify`·`build_and_preview`·`Deploy Preview` 통과
+- 머지: `5608751` Merge PR #3 → Hosting 자동 배포 성공
+- Firestore Rules·인덱스: 머지 후 `npx -y firebase-tools@latest deploy --only firestore`로 배포
+  (컴파일 성공, `released rules firestore.rules to cloud.firestore`). 배포한 파일은 `origin/main`과 해시 일치
 - 기준 커밋: `34a2465 Merge PR #2: authDomain·OAuth 리디렉션 URI 제약 문서화`

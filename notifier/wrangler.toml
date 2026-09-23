@@ -1,0 +1,13 @@
+# 희나리 합주 알림 Worker. 배포: notifier/README.md 참고.
+name = "heenari-notifier"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+# 1분마다 초대 알림 작업과 합주 1시간 전 알림을 처리한다.
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+FIREBASE_PROJECT_ID = "heenari-9f2a6"
+
+# GOOGLE_SERVICE_ACCOUNT 는 비밀값이다. 여기에 적지 말고 `npx wrangler secret put GOOGLE_SERVICE_ACCOUNT` 로 넣는다.

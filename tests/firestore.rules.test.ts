@@ -459,3 +459,181 @@ describe('일정 태그', () => {
     await assertFails(setDoc(doc(member, 'events', 'e-bad-tag'), eventCreatePayload('member-a', { tag: 'party' })));
   });
 });
+
+// ---- FB-04: 회원 명부·푸시 기기·참여자·초대 알림 작업 -------------------------
+
+describe('members 회원 명부', () => {
+  it('본인 명부 문서만 이름으로 만들고 고칠 수 있다', async () => {
+    const db = testEnv.authenticatedContext('member-a', googleUser('member-a')).firestore();
+    await assertSucceeds(setDoc(doc(db, 'members', 'member-a'), { name: '김희나', updatedAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(doc(db, 'members', 'member-a'), { name: '김희나2', updatedAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(db, 'members', 'member-b'), { name: '사칭', updatedAt: serverTimestamp() }));
+  });
+
+  it('이메일 등 다른 필드, 빈 이름·긴 이름, 삭제는 거부한다', async () => {
+    const db = testEnv.authenticatedContext('member-a', googleUser('member-a')).firestore();
+    await assertFails(setDoc(doc(db, 'members', 'member-a'), { name: '김희나', email: 'a@example.com', updatedAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(db, 'members', 'member-a'), { name: '', updatedAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(db, 'members', 'member-a'), { name: '가'.repeat(61), updatedAt: serverTimestamp() }));
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'members', 'member-a'), { name: '김희나', updatedAt: Timestamp.now() });
+    });
+    await assertFails(deleteDoc(doc(db, 'members', 'member-a')));
+  });
+
+  it('검증된 회원은 명부를 읽고, 비로그인은 읽을 수 없다', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'members', 'member-b'), { name: '이나리', updatedAt: Timestamp.now() });
+    });
+    const member = testEnv.authenticatedContext('member-a', googleUser('member-a')).firestore();
+    await assertSucceeds(getDoc(doc(member, 'members', 'member-b')));
+    await assertFails(getDoc(doc(testEnv.unauthenticatedContext().firestore(), 'members', 'member-b')));
+  });
+});
+
+describe('members 프로필(이름·한줄소개)', () => {
+  it('본인 프로필에 한줄소개를 저장하고 지울 수 있다', async () => {
+    const db = testEnv.authenticatedContext('member-a', googleUser('member-a')).firestore();
+    await assertSucceeds(setDoc(doc(db, 'members', 'member-a'), { name: '김희나', bio: '주말 합주 환영', updatedAt: serverTimestamp() }));
+    await assertSucceeds(setDoc(doc(db, 'members', 'member-a'), { name: '김희나', bio: null, updatedAt: serverTimestamp() }));
+  });
+
+  it('담당 세션 같은 다른 필드, 긴 소개·빈 소개는 거부한다', async () => {
+    const db = testEnv.authenticatedContext('member-a', googleUser('member-a')).firestore();
+    const base = { name: '김희나', updatedAt: serverTimestamp() };
+    await assertFails(setDoc(doc(db, 'members', 'member-a'), { ...base, parts: ['vocal'] }));
+    await assertFails(setDoc(doc(db, 'members', 'member-a'), { ...base, bio: '가'.repeat(61) }));
+    await assertFails(setDoc(doc(db, 'members', 'member-a'), { ...base, bio: '' }));
+  });
+
+  it('남의 프로필은 바꿀 수 없다', async () => {
+    const db = testEnv.authenticatedContext('member-a', googleUser('member-a')).firestore();
+    await assertFails(setDoc(doc(db, 'members', 'member-b'), { name: '이나리', bio: null, updatedAt: serverTimestamp() }));
+  });
+});
+
+describe('members/{uid}/devices 푸시 토큰', () => {
+  it('본인 기기 토큰만 저장·조회·삭제한다', async () => {
+    const db = testEnv.authenticatedContext('member-a', googleUser('member-a')).firestore();
+    const ref = doc(db, 'members', 'member-a', 'devices', 'd1');
+    await assertSucceeds(setDoc(ref, { token: 'fcm-token', updatedAt: serverTimestamp() }));
+    await assertSucceeds(getDoc(ref));
+    await assertSucceeds(deleteDoc(ref));
+  });
+
+  it('남의 토큰은 읽거나 쓸 수 없고, 다른 필드는 거부한다', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'members', 'member-b', 'devices', 'd1'), { token: 'secret', updatedAt: Timestamp.now() });
+    });
+    const db = testEnv.authenticatedContext('member-a', googleUser('member-a')).firestore();
+    await assertFails(getDoc(doc(db, 'members', 'member-b', 'devices', 'd1')));
+    await assertFails(setDoc(doc(db, 'members', 'member-b', 'devices', 'd2'), { token: 'x', updatedAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(db, 'members', 'member-a', 'devices', 'd3'), { token: 'x', platform: 'ios', updatedAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(db, 'members', 'member-a', 'devices', 'd4'), { token: '', updatedAt: serverTimestamp() }));
+  });
+});
+
+describe('participantIds 합주 초대', () => {
+  it('작성자는 참여자를 넣어 예약·일정을 만든다', async () => {
+    const db = testEnv.authenticatedContext('member-b', googleUser('member-b')).firestore();
+    await assertSucceeds(setDoc(doc(db, 'reservations', 'r-invite'), reservationCreatePayload('member-b', { participantIds: ['member-c', 'member-d'] })));
+    await assertSucceeds(setDoc(doc(db, 'events', 'e-invite'), eventCreatePayload('member-b', { participantIds: ['member-c'] })));
+  });
+
+  it('작성자 자신·중복·20명 초과 참여자는 거부한다', async () => {
+    const db = testEnv.authenticatedContext('member-b', googleUser('member-b')).firestore();
+    await assertFails(setDoc(doc(db, 'reservations', 'r-self'), reservationCreatePayload('member-b', { participantIds: ['member-b'] })));
+    await assertFails(setDoc(doc(db, 'reservations', 'r-dup'), reservationCreatePayload('member-b', { participantIds: ['member-c', 'member-c'] })));
+    await assertFails(setDoc(doc(db, 'reservations', 'r-many'), reservationCreatePayload('member-b', {
+      participantIds: Array.from({ length: 21 }, (_, i) => `m-${i}`),
+    })));
+    await assertFails(setDoc(doc(db, 'events', 'e-self'), eventCreatePayload('member-b', { participantIds: ['member-b'] })));
+  });
+
+  async function seedInvited() {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, 'reservations', 'r-jam'), seededReservation('member-a', { participantIds: ['member-b', 'member-c'] }));
+      await setDoc(doc(db, 'events', 'e-jam'), { ...seededEvent('member-a'), participantIds: ['member-b'] });
+    });
+  }
+
+  it('참여자는 스스로 빠지거나 참여자 목록을 바꿀 수 없다(작성자만 바꾼다)', async () => {
+    await seedInvited();
+    const b = testEnv.authenticatedContext('member-b', googleUser('member-b')).firestore();
+    await assertFails(updateDoc(doc(b, 'reservations', 'r-jam'), { participantIds: ['member-c'], updatedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(b, 'events', 'e-jam'), { participantIds: [], updatedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(b, 'reservations', 'r-jam'), { participantIds: ['member-b', 'member-c', 'member-x'], updatedAt: serverTimestamp() }));
+  });
+
+  it('참여자가 아닌 회원도 참여자 목록을 바꿀 수 없다', async () => {
+    await seedInvited();
+    const d = testEnv.authenticatedContext('member-d', googleUser('member-d')).firestore();
+    await assertFails(updateDoc(doc(d, 'reservations', 'r-jam'), { participantIds: ['member-b', 'member-c', 'member-d'], updatedAt: serverTimestamp() }));
+  });
+
+  it('작성자는 참여자를 바꿀 수 있다', async () => {
+    await seedInvited();
+    const a = testEnv.authenticatedContext('member-a', googleUser('member-a')).firestore();
+    await assertSucceeds(updateDoc(doc(a, 'reservations', 'r-jam'), { participantIds: ['member-d'], updatedAt: serverTimestamp() }));
+  });
+});
+
+describe('pushJobs 초대 알림 작업', () => {
+  function job(overrides: Record<string, unknown> = {}) {
+    return {
+      kind: 'invite',
+      collection: 'reservations',
+      docId: 'r-job',
+      targetIds: ['member-c'],
+      createdBy: 'member-b',
+      createdAt: serverTimestamp(),
+      ...overrides,
+    };
+  }
+
+  it('예약과 같은 배치로 새 참여자에게 보낼 작업을 만든다', async () => {
+    const db = testEnv.authenticatedContext('member-b', googleUser('member-b')).firestore();
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'reservations', 'r-job'), reservationCreatePayload('member-b', { participantIds: ['member-c', 'member-d'] }));
+    batch.set(doc(db, 'pushJobs', 'j1'), job({ targetIds: ['member-c', 'member-d'] }));
+    await assertSucceeds(batch.commit());
+  });
+
+  it('일정에 대한 작업도 만들 수 있다', async () => {
+    const db = testEnv.authenticatedContext('member-b', googleUser('member-b')).firestore();
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'events', 'e-job'), eventCreatePayload('member-b', { participantIds: ['member-c'] }));
+    batch.set(doc(db, 'pushJobs', 'j2'), job({ collection: 'events', docId: 'e-job' }));
+    await assertSucceeds(batch.commit());
+  });
+
+  it('참여자가 아닌 대상, 남의 예약, 다른 작성자 명의, 이상한 종류는 거부한다', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'reservations', 'r-job'), seededReservation('member-b', { participantIds: ['member-c'] }));
+      await setDoc(doc(context.firestore(), 'reservations', 'r-other'), seededReservation('member-a', { participantIds: ['member-c'] }));
+    });
+    const db = testEnv.authenticatedContext('member-b', googleUser('member-b')).firestore();
+    await assertSucceeds(setDoc(doc(db, 'pushJobs', 'ok'), job()));
+    await assertFails(setDoc(doc(db, 'pushJobs', 'not-participant'), job({ targetIds: ['member-x'] })));
+    await assertFails(setDoc(doc(db, 'pushJobs', 'others-doc'), job({ docId: 'r-other' })));
+    await assertFails(setDoc(doc(db, 'pushJobs', 'forged'), job({ createdBy: 'member-a' })));
+    await assertFails(setDoc(doc(db, 'pushJobs', 'kind'), job({ kind: 'spam' })));
+    await assertFails(setDoc(doc(db, 'pushJobs', 'coll'), job({ collection: 'admins' })));
+    await assertFails(setDoc(doc(db, 'pushJobs', 'empty'), job({ targetIds: [] })));
+    await assertFails(setDoc(doc(db, 'pushJobs', 'missing'), job({ docId: 'ghost' })));
+  });
+
+  it('작업은 읽거나 고치거나 지울 수 없고, pushLog는 접근할 수 없다', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'pushJobs', 'j'), { kind: 'invite' });
+      await setDoc(doc(context.firestore(), 'pushLog', 'k'), { sentAt: Timestamp.now() });
+    });
+    const db = testEnv.authenticatedContext('member-b', googleUser('member-b')).firestore();
+    await assertFails(getDoc(doc(db, 'pushJobs', 'j')));
+    await assertFails(updateDoc(doc(db, 'pushJobs', 'j'), { kind: 'x' }));
+    await assertFails(deleteDoc(doc(db, 'pushJobs', 'j')));
+    await assertFails(getDoc(doc(db, 'pushLog', 'k')));
+    await assertFails(setDoc(doc(db, 'pushLog', 'k2'), { sentAt: serverTimestamp() }));
+  });
+});
