@@ -60,12 +60,17 @@ export function buildTimeline(dayKey: string, reservations: ReservationView[], e
   ].sort(compareItems);
 }
 
-// 아직 끝나지 않은(진행 중 포함) 가장 이른 일정.
-export function nextUpcomingEvent(events: ClubEventView[], now: Date): ClubEventView | null {
-  const candidates = events
-    .filter((event) => event.startAt.getTime() >= now.getTime() || eventEffectiveEnd(event).getTime() > now.getTime())
-    .sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
-  return candidates[0] ?? null;
+function eventNotEnded(event: ClubEventView, now: Date): boolean {
+  return event.startAt.getTime() >= now.getTime() || eventEffectiveEnd(event).getTime() > now.getTime();
+}
+
+// 동아리 전체에서 아직 끝나지 않은(진행 중 포함) 가장 이른 합주. 동아리방 예약과 일정을 가리지 않는다.
+export function nextJam(reservations: ReservationView[], events: ClubEventView[], now: Date): TimelineItem | null {
+  const items = [
+    ...reservations.filter((reservation) => reservation.tag === 'jam' && reservation.endAt.getTime() > now.getTime()).map(reservationItem),
+    ...events.filter((event) => event.tag === 'jam' && eventNotEnded(event, now)).map(eventItem),
+  ].sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+  return items[0] ?? null;
 }
 
 // monthKey(YYYY-MM-01)가 가리키는 달에 속하는, 일정이 있는 날짜들.

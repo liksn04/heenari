@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { fetchDayReservations } from '../reservations/repository';
+import { fetchDayReservations, fetchUpcomingJamReservations } from '../reservations/repository';
 import type { ReservationView } from '../reservations/types';
-import { fetchEventsBetween, fetchUpcomingEventCandidates } from './eventRepository';
-import { dayRange, eventDaysInMonth, nextUpcomingEvent } from './timeline';
+import { fetchEventsBetween, fetchUpcomingJamEvents } from './eventRepository';
+import { dayRange, eventDaysInMonth, nextJam } from './timeline';
 import { addMonths } from '../reservations/calendar';
 import { kstInstant } from './eventPolicy';
-import type { ClubEventView } from './types';
+import type { ClubEventView, TimelineItem } from './types';
 
 export type LoadStatus = 'loading' | 'ready' | 'error';
 
@@ -16,7 +16,7 @@ export interface Loaded<T> {
 }
 
 // key가 바뀌면 다시 불러오고, 늦게 도착한 이전 응답은 버린다.
-function useLoader<T>(key: string, load: () => Promise<T>, empty: T): Loaded<T> {
+export function useLoader<T>(key: string, load: () => Promise<T>, empty: T): Loaded<T> {
   const [state, setState] = useState<{ key: string; status: LoadStatus; data: T }>({ key, status: 'loading', data: empty });
 
   const refresh = useCallback(async () => {
@@ -75,9 +75,11 @@ export function useMonthEventDays(monthKey: string, version = 0): Loaded<Set<str
   }, EMPTY_DAYS);
 }
 
-export function useUpcomingEvent(): Loaded<ClubEventView | null> {
-  return useLoader('upcoming', async () => {
+// 홈 빨간 카드: 동아리 전체의 다음 합주(동아리방 예약·합주 일정).
+export function useNextJam(): Loaded<TimelineItem | null> {
+  return useLoader('next-jam', async () => {
     const now = new Date();
-    return nextUpcomingEvent(await fetchUpcomingEventCandidates(now), now);
+    const [reservations, events] = await Promise.all([fetchUpcomingJamReservations(now), fetchUpcomingJamEvents(now)]);
+    return nextJam(reservations, events, now);
   }, null);
 }

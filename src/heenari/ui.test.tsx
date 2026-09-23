@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import AppShell from './AppShell';
 import Login from './Login';
-import { HomePage, MyPage, SchedulePage } from './pages';
+import { HomePage, MyPage, NoticesPage, SchedulePage } from './pages';
 
 const auth = vi.hoisted(() => ({
   member: {
@@ -56,8 +56,16 @@ vi.mock('./members/ProfileSheet', () => ({
   ),
 }));
 
+vi.mock('./members/useMembers', () => ({
+  useMembers: () => ({ status: 'ready', members: [], names: new Map([['u1', '김희나'], ['u2', '박드럼']]) }),
+}));
+
+vi.mock('./notices/useNotices', () => ({
+  useNotices: () => ({ status: 'ready', data: [], refresh: vi.fn() }),
+}));
+
 vi.mock('./schedule/useScheduleData', () => ({
-  useUpcomingEvent: () => ({ ...schedule.upcoming, refresh: vi.fn() }),
+  useNextJam: () => ({ ...schedule.upcoming, refresh: vi.fn() }),
   useDayTimeline: () => ({ ...schedule.today, refresh: schedule.refresh }),
   useMonthEventDays: () => ({ status: 'ready', data: new Set<string>(), refresh: vi.fn() }),
 }));
@@ -151,7 +159,14 @@ describe('core pages', () => {
   it('홈에서 회원 이름과 예약 이동 링크를 보여준다', () => {
     render(<MemoryRouter><HomePage /></MemoryRouter>);
     expect(screen.getByRole('heading', { name: /김희나님/ })).toBeTruthy();
+    const regions = screen.getAllByRole('region').map((region) => region.getAttribute('aria-label'));
+    expect(regions.slice(0, 2)).toEqual(['다음 합주', '동아리 공지']);
     expect(screen.getByRole('link', { name: '일정 화면에서 예약하기' }).getAttribute('href')).toBe('/schedule');
+  });
+
+  it('공지 화면은 동아리 공지 전체를 보여준다', () => {
+    render(<MemoryRouter initialEntries={['/notices']}><NoticesPage /></MemoryRouter>);
+    expect(screen.getByRole('heading', { level: 1, name: '동아리 공지' })).toBeTruthy();
   });
 
   it('일정 화면은 달력·선택일 빈 상태와 하나의 일정 추가 버튼을 보여준다', () => {
@@ -162,11 +177,18 @@ describe('core pages', () => {
     expect(screen.queryByRole('button', { name: '공간 예약' })).toBeNull();
   });
 
-  it('홈은 다음 일정과 오늘 일정 요약을 보여준다', () => {
+  it('홈 빨간 카드는 동아리 전체의 다음 합주와 오늘 일정 요약을 보여준다', () => {
     const start = new Date(Date.now() + 60 * 60 * 1000);
+    const reservation = {
+      id: 'r1', title: '금요 합주', note: null, ownerId: 'u9', ownerName: '이기타', startAt: start,
+      endAt: new Date(start.getTime() + 60 * 60 * 1000), dayKey: '2026-10-02', slotIds: [], tag: 'jam', participantIds: ['u2', 'u3'],
+    };
     schedule.upcoming = {
       status: 'ready',
-      data: { id: 'e1', title: '가을 정기 공연', description: null, location: '대강당', startAt: start, endAt: null, allDay: false, tag: null, participantIds: [], createdBy: 'a' },
+      data: {
+        kind: 'reservation', id: 'r1', title: '금요 합주', startAt: start, allDay: false, timeLabel: '19:00–20:00', tag: 'jam',
+        place: '동아리방', ownerId: 'u9', participantIds: ['u2', 'u3'], ownerName: '이기타', reservation,
+      },
     };
     const todayStart = new Date();
     schedule.today = {
@@ -180,10 +202,12 @@ describe('core pages', () => {
       },
     };
     render(<MemoryRouter><HomePage /></MemoryRouter>);
-    const card = screen.getByRole('region', { name: '다음 일정' });
-    expect(card.textContent).toContain('가을 정기 공연');
-    expect(card.textContent).toContain('대강당');
-    expect(card.textContent).toMatch(/\d+월 \d+일 \(.\) · \d{2}:\d{2}/);
+    const card = screen.getByRole('region', { name: '다음 합주' });
+    expect(card.textContent).toContain('금요 합주');
+    expect(card.textContent).toContain('동아리방');
+    expect(card.textContent).toMatch(/\d+월 \d+일 \(.\) · 19:00–20:00/);
+    expect(card.textContent).toContain('이기타 · 함께: 회원 2명');
+    expect(card.querySelector('a')?.getAttribute('href')).toMatch(/^\/schedule\?day=\d{4}-\d{2}-\d{2}$/);
     const summary = screen.getByRole('list', { name: '오늘 일정 요약' });
     expect(summary.textContent).toContain('오늘 일정 1');
     expect(summary.textContent).not.toContain('오늘 일정 4');
@@ -194,19 +218,19 @@ describe('core pages', () => {
 
   it('홈은 일정이 없거나 불러오는 중·실패일 때 상태를 구분한다', async () => {
     const { rerender } = render(<MemoryRouter><HomePage /></MemoryRouter>);
-    expect(screen.getByText('예정된 동아리 일정이 없어요')).toBeTruthy();
+    expect(screen.getByText('예정된 합주가 없어요')).toBeTruthy();
     expect(screen.getByText('오늘은 예정된 일정이 없어요')).toBeTruthy();
 
     schedule.upcoming = { status: 'loading', data: null };
     schedule.today = { ...schedule.today, status: 'loading' };
     rerender(<MemoryRouter><HomePage /></MemoryRouter>);
-    expect(screen.getByText('다음 일정을 확인하고 있어요')).toBeTruthy();
+    expect(screen.getByText('다음 합주를 확인하고 있어요')).toBeTruthy();
     expect(screen.getByText('오늘 일정을 확인하고 있어요')).toBeTruthy();
 
     schedule.upcoming = { status: 'error', data: null };
     schedule.today = { ...schedule.today, status: 'error' };
     rerender(<MemoryRouter><HomePage /></MemoryRouter>);
-    expect(screen.getByText('일정을 불러오지 못했어요')).toBeTruthy();
+    expect(screen.getByText('합주를 불러오지 못했어요')).toBeTruthy();
     await userEvent.setup().click(screen.getByRole('button', { name: '다시 시도' }));
     expect(schedule.refresh).toHaveBeenCalledOnce();
   });

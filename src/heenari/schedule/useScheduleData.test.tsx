@@ -6,16 +6,20 @@ import type { ClubEventView } from './types';
 const m = vi.hoisted(() => ({
   fetchDayReservations: vi.fn(),
   fetchEventsBetween: vi.fn(),
-  fetchUpcomingEventCandidates: vi.fn(),
+  fetchUpcomingJamEvents: vi.fn(),
+  fetchUpcomingJamReservations: vi.fn(),
 }));
 
-vi.mock('../reservations/repository', () => ({ fetchDayReservations: m.fetchDayReservations }));
+vi.mock('../reservations/repository', () => ({
+  fetchDayReservations: m.fetchDayReservations,
+  fetchUpcomingJamReservations: m.fetchUpcomingJamReservations,
+}));
 vi.mock('./eventRepository', () => ({
   fetchEventsBetween: m.fetchEventsBetween,
-  fetchUpcomingEventCandidates: m.fetchUpcomingEventCandidates,
+  fetchUpcomingJamEvents: m.fetchUpcomingJamEvents,
 }));
 
-import { useDayTimeline, useMonthEventDays, useUpcomingEvent } from './useScheduleData';
+import { useDayTimeline, useMonthEventDays, useNextJam } from './useScheduleData';
 
 function event(id: string, start: Date, overrides: Partial<ClubEventView> = {}): ClubEventView {
   return { id, title: id, description: null, location: null, startAt: start, endAt: null, allDay: false, tag: null, participantIds: [], createdBy: 'a', ...overrides };
@@ -24,7 +28,8 @@ function event(id: string, start: Date, overrides: Partial<ClubEventView> = {}):
 beforeEach(() => {
   m.fetchDayReservations.mockReset().mockResolvedValue([]);
   m.fetchEventsBetween.mockReset().mockResolvedValue([]);
-  m.fetchUpcomingEventCandidates.mockReset().mockResolvedValue([]);
+  m.fetchUpcomingJamEvents.mockReset().mockResolvedValue([]);
+  m.fetchUpcomingJamReservations.mockReset().mockResolvedValue([]);
 });
 
 afterEach(cleanup);
@@ -78,21 +83,27 @@ describe('useMonthEventDays', () => {
   });
 });
 
-describe('useUpcomingEvent', () => {
-  it('끝나지 않은 가장 가까운 일정을 고른다', async () => {
-    const future = new Date(Date.now() + 60 * 60 * 1000);
-    m.fetchUpcomingEventCandidates.mockResolvedValue([
-      event('ended', new Date(Date.now() - 2 * 60 * 60 * 1000), { endAt: new Date(Date.now() - 60 * 60 * 1000) }),
-      event('next', future),
+describe('useNextJam', () => {
+  it('동아리방 합주와 합주 일정 중 끝나지 않은 가장 이른 것을 고른다', async () => {
+    const hour = 60 * 60 * 1000;
+    m.fetchUpcomingJamEvents.mockResolvedValue([
+      event('ended', new Date(Date.now() - 2 * hour), { tag: 'jam', endAt: new Date(Date.now() - hour) }),
+      event('outside', new Date(Date.now() + 2 * hour), { tag: 'jam' }),
     ]);
-    const { result } = renderHook(() => useUpcomingEvent());
+    m.fetchUpcomingJamReservations.mockResolvedValue([{
+      id: 'room', title: '합주', note: null, ownerId: 'u1', ownerName: '김희나',
+      startAt: new Date(Date.now() + hour), endAt: new Date(Date.now() + 2 * hour),
+      dayKey: '2026-10-02', slotIds: [], tag: 'jam', participantIds: [],
+    }]);
+    const { result } = renderHook(() => useNextJam());
     await waitFor(() => expect(result.current.status).toBe('ready'));
-    expect(result.current.data?.id).toBe('next');
+    expect(result.current.data).toMatchObject({ kind: 'reservation', id: 'room' });
+    expect(m.fetchUpcomingJamReservations).toHaveBeenCalledWith(m.fetchUpcomingJamEvents.mock.calls[0][0]);
   });
 
   it('실패하면 null과 오류 상태', async () => {
-    m.fetchUpcomingEventCandidates.mockRejectedValue(new Error('x'));
-    const { result } = renderHook(() => useUpcomingEvent());
+    m.fetchUpcomingJamReservations.mockRejectedValue(new Error('x'));
+    const { result } = renderHook(() => useNextJam());
     await waitFor(() => expect(result.current.status).toBe('error'));
     expect(result.current.data).toBeNull();
   });

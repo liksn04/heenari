@@ -662,3 +662,77 @@ describe('pushJobs 초대 알림 작업', () => {
     await assertFails(setDoc(doc(db, 'pushLog', 'k2'), { sentAt: serverTimestamp() }));
   });
 });
+
+function noticePayload(uid: string, overrides: Record<string, unknown> = {}) {
+  return {
+    title: '이번 주 정기 회의',
+    body: '금요일 19시에 동아리방에서 모여요.',
+    authorId: uid,
+    authorName: '운영진',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    ...overrides,
+  };
+}
+
+async function seedNotice() {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'notices', 'n1'), {
+      ...noticePayload('admin-x'),
+      createdAt: Timestamp.fromDate(new Date(Date.UTC(2029, 0, 1))),
+      updatedAt: Timestamp.fromDate(new Date(Date.UTC(2029, 0, 1))),
+    });
+  });
+}
+
+describe('notices 규칙', () => {
+  it('회원은 공지를 읽을 수 있고 비로그인 사용자는 읽을 수 없다', async () => {
+    await seedNotice();
+    const member = testEnv.authenticatedContext('member-a', googleUser('member-a')).firestore();
+    const guest = testEnv.unauthenticatedContext().firestore();
+    await assertSucceeds(getDoc(doc(member, 'notices', 'n1')));
+    await assertFails(getDoc(doc(guest, 'notices', 'n1')));
+  });
+
+  it('운영진만 본인 명의로 공지를 쓸 수 있다', async () => {
+    const admin = testEnv.authenticatedContext('admin-x', googleUser('admin-x')).firestore();
+    const member = testEnv.authenticatedContext('member-a', googleUser('member-a')).firestore();
+    await assertSucceeds(setDoc(doc(admin, 'notices', 'ok'), noticePayload('admin-x')));
+    await assertFails(setDoc(doc(member, 'notices', 'member'), noticePayload('member-a')));
+    await assertFails(setDoc(doc(admin, 'notices', 'forged'), noticePayload('member-a')));
+  });
+
+  it('제목·본문 길이, 필드 모양, 서버 시각을 검증한다', async () => {
+    const admin = testEnv.authenticatedContext('admin-x', googleUser('admin-x')).firestore();
+    await assertSucceeds(setDoc(doc(admin, 'notices', 'max'), noticePayload('admin-x', { title: 'a'.repeat(60), body: 'b'.repeat(1000) })));
+    await assertFails(setDoc(doc(admin, 'notices', 'empty-title'), noticePayload('admin-x', { title: '' })));
+    await assertFails(setDoc(doc(admin, 'notices', 'long-title'), noticePayload('admin-x', { title: 'a'.repeat(61) })));
+    await assertFails(setDoc(doc(admin, 'notices', 'empty-body'), noticePayload('admin-x', { body: '' })));
+    await assertFails(setDoc(doc(admin, 'notices', 'long-body'), noticePayload('admin-x', { body: 'b'.repeat(1001) })));
+    await assertFails(setDoc(doc(admin, 'notices', 'extra'), noticePayload('admin-x', { pinned: true })));
+    await assertFails(setDoc(doc(admin, 'notices', 'no-name'), noticePayload('admin-x', { authorName: '' })));
+    await assertFails(setDoc(doc(admin, 'notices', 'old'), noticePayload('admin-x', { createdAt: Timestamp.fromDate(new Date(Date.UTC(2029, 0, 1))) })));
+  });
+
+  it('운영진은 다른 운영진 공지도 고칠 수 있지만 작성자와 작성 시각은 바꿀 수 없다', async () => {
+    await seedNotice();
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'admins', 'admin-y'), { name: '운영진2' });
+    });
+    const other = testEnv.authenticatedContext('admin-y', googleUser('admin-y')).firestore();
+    await assertSucceeds(updateDoc(doc(other, 'notices', 'n1'), { title: '장소 변경', body: '301호로 바뀌었어요.', updatedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(other, 'notices', 'n1'), { authorId: 'admin-y', updatedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(other, 'notices', 'n1'), { authorName: '가짜', updatedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(other, 'notices', 'n1'), { createdAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(other, 'notices', 'n1'), { title: '시각 누락' }));
+  });
+
+  it('회원은 공지를 고치거나 지울 수 없고, 운영진은 지울 수 있다', async () => {
+    await seedNotice();
+    const member = testEnv.authenticatedContext('member-a', googleUser('member-a')).firestore();
+    const admin = testEnv.authenticatedContext('admin-x', googleUser('admin-x')).firestore();
+    await assertFails(updateDoc(doc(member, 'notices', 'n1'), { title: '몰래 수정', updatedAt: serverTimestamp() }));
+    await assertFails(deleteDoc(doc(member, 'notices', 'n1')));
+    await assertSucceeds(deleteDoc(doc(admin, 'notices', 'n1')));
+  });
+});

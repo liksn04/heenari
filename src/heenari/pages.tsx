@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarDays, ChevronRight, Clock3, LogOut, MapPin, Sparkles, UserPen } from 'lucide-react';
+import { CalendarDays, ChevronRight, Clock3, LogOut, UserPen } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useHeenariAuth } from './auth/authState';
 import { ReservationList } from './reservations/ReservationList';
@@ -9,9 +9,11 @@ import { ScheduleBoard } from './schedule/ScheduleBoard';
 import { AppSettings } from './push/AppSettings';
 import { ProfileSheet } from './members/ProfileSheet';
 import { useMyProfile } from './members/useMyProfile';
-import { formatEventRange, spansMultipleDays } from './schedule/eventPolicy';
-import { buildTimeline, dayLabel } from './schedule/timeline';
-import { useDayTimeline, useUpcomingEvent } from './schedule/useScheduleData';
+import { buildTimeline } from './schedule/timeline';
+import { useDayTimeline, useNextJam } from './schedule/useScheduleData';
+import { NextJamCard } from './home/NextJamCard';
+import { useMembers } from './members/useMembers';
+import { NoticeBoard } from './notices/NoticeBoard';
 
 const TODAY_SUMMARY_LIMIT = 3;
 
@@ -25,8 +27,8 @@ export function HomePage() {
   const viewer = useViewer();
   const { reservations } = useMyUpcomingReservations(viewer.uid);
   const nextReservation = reservations[0] ?? null;
-  const upcoming = useUpcomingEvent();
-  const nextEvent = upcoming.data;
+  const nextJam = useNextJam();
+  const members = useMembers();
   const todayKey = dayKeyOf(new Date());
   const todayTimeline = useDayTimeline(todayKey);
   const todayItems = buildTimeline(todayKey, todayTimeline.data.reservations, todayTimeline.data.events);
@@ -41,36 +43,12 @@ export function HomePage() {
       <section className="welcome-block">
         <p className="eyebrow">{today}</p>
         <h1>{member?.name}님,<br />오늘도 반가워요.</h1>
-        <p>희나리의 다음 일정과 공간 예약을 확인해보세요.</p>
+        <p>다가오는 합주와 동아리 소식을 확인해보세요.</p>
       </section>
 
-      <section className="next-event-card" aria-label="다음 일정">
-        <div>
-          <p className="card-kicker"><Sparkles size={15} /> 다음 일정</p>
-          {nextEvent ? (
-            <>
-              <h2>{nextEvent.title}</h2>
-              <p className="next-event-when">
-                {spansMultipleDays(nextEvent)
-                  ? formatEventRange(nextEvent)
-                  : `${dayLabel(dayKeyOf(nextEvent.startAt))} · ${formatEventRange(nextEvent)}`}
-              </p>
-              {nextEvent.location && <p><MapPin size={13} aria-hidden="true" /> {nextEvent.location}</p>}
-            </>
-          ) : upcoming.status === 'error' ? (
-            <>
-              <h2>일정을 불러오지 못했어요</h2>
-              <p>잠시 후 일정 화면에서 다시 확인해주세요.</p>
-            </>
-          ) : (
-            <>
-              <h2>{upcoming.status === 'loading' ? '다음 일정을 확인하고 있어요' : '예정된 동아리 일정이 없어요'}</h2>
-              <p>운영진이 일정을 등록하면 가장 먼저 이곳에 표시됩니다.</p>
-            </>
-          )}
-        </div>
-        <CalendarDays size={34} strokeWidth={1.4} aria-hidden="true" />
-      </section>
+      <NextJamCard next={nextJam} names={members.names} />
+
+      <NoticeBoard variant="home" />
 
       <section className="section-block">
         <div className="section-heading">
@@ -134,6 +112,14 @@ export function HomePage() {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+export function NoticesPage() {
+  return (
+    <div className="page-stack">
+      <NoticeBoard variant="page" />
     </div>
   );
 }

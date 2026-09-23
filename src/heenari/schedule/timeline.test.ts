@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { kstInstant } from './eventPolicy';
-import { buildTimeline, dayLabel, dayRange, eventDaysInMonth, nextUpcomingEvent } from './timeline';
+import { buildTimeline, dayLabel, dayRange, eventDaysInMonth, nextJam } from './timeline';
 import type { ClubEventView } from './types';
 import type { ReservationView } from '../reservations/types';
 
@@ -76,26 +76,37 @@ describe('buildTimeline', () => {
   });
 });
 
-describe('nextUpcomingEvent', () => {
+describe('nextJam', () => {
   const now = kstInstant('2026-10-02', '12:00');
+  const jam = (id: string, overrides: Partial<ClubEventView> = {}) => event(id, { tag: 'jam', ...overrides });
 
-  it('끝나지 않은 가장 이른 일정을 고른다', () => {
+  it('끝나지 않은 가장 이른 합주 일정을 고른다', () => {
     const events = [
-      event('past', { startAt: kstInstant('2026-10-01', '19:00'), endAt: kstInstant('2026-10-01', '21:00') }),
-      event('later', { startAt: kstInstant('2026-10-03', '19:00') }),
-      event('ongoing', { startAt: kstInstant('2026-10-02', '11:00'), endAt: kstInstant('2026-10-02', '13:00') }),
+      jam('past', { startAt: kstInstant('2026-10-01', '19:00'), endAt: kstInstant('2026-10-01', '21:00') }),
+      jam('later', { startAt: kstInstant('2026-10-03', '19:00') }),
+      jam('ongoing', { startAt: kstInstant('2026-10-02', '11:00'), endAt: kstInstant('2026-10-02', '13:00') }),
     ];
-    expect(nextUpcomingEvent(events, now)?.id).toBe('ongoing');
+    expect(nextJam([], events, now)?.id).toBe('ongoing');
   });
 
-  it('오늘 종일 일정은 진행 중으로 본다', () => {
-    const events = [event('today', { allDay: true, startAt: kstInstant('2026-10-02') }), event('later', { startAt: kstInstant('2026-10-03', '19:00') })];
-    expect(nextUpcomingEvent(events, now)?.id).toBe('today');
+  it('오늘 종일 합주는 진행 중으로 보고, 이미 시작한 종료 없는 일정은 건너뛴다', () => {
+    expect(nextJam([], [jam('today', { allDay: true, startAt: kstInstant('2026-10-02') }), jam('later', { startAt: kstInstant('2026-10-03', '19:00') })], now)?.id).toBe('today');
+    expect(nextJam([], [jam('started', { startAt: kstInstant('2026-10-02', '11:00') })], now)).toBeNull();
   });
 
-  it('이미 시작한 종료 없는 일정은 건너뛰고, 없으면 null', () => {
-    expect(nextUpcomingEvent([event('started', { startAt: kstInstant('2026-10-02', '11:00') })], now)).toBeNull();
-    expect(nextUpcomingEvent([], now)).toBeNull();
+  it('동아리방 합주와 합주 일정 중 먼저 시작하는 것을, 진행 중 예약까지 포함해 고른다', () => {
+    const item = nextJam(
+      [reservation('room', '11:30', '12:30'), reservation('done', '10:00', '11:00')],
+      [jam('outside', { startAt: kstInstant('2026-10-02', '13:00') })],
+      now,
+    );
+    expect(item).toMatchObject({ kind: 'reservation', id: 'room', place: '동아리방', timeLabel: '11:30–12:30', ownerName: '김희나' });
+    expect(nextJam([reservation('late', '18:00', '19:00')], [jam('outside', { startAt: kstInstant('2026-10-02', '13:00') })], now)?.id).toBe('outside');
+  });
+
+  it('합주가 아닌 예약·일정은 무시하고, 없으면 null', () => {
+    expect(nextJam([reservation('lesson', '18:00', '19:00', { tag: 'lesson' }), reservation('old', '18:00', '19:00', { tag: null })], [event('etc', { tag: 'etc' }), event('none', { tag: null })], now)).toBeNull();
+    expect(nextJam([], [], now)).toBeNull();
   });
 });
 

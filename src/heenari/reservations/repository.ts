@@ -2,6 +2,7 @@ import { getFirebaseDb } from '../lib/firebase';
 import {
   isBookableDay,
   isTag,
+  JAM_MAX_SLOTS,
   maxSlotsFor,
   reservationWindow,
   validateNote,
@@ -10,7 +11,7 @@ import {
   type ReservationWindow,
   type SlotSelectionError,
 } from './policy';
-import { slotIdToStartAt } from './slots';
+import { SLOT_MINUTES, slotIdToStartAt } from './slots';
 import type { ReservationDraft, ReservationView } from './types';
 import { buildInviteJob, newInvitees, normalizeParticipants, readParticipantIds } from '../members/invites';
 
@@ -297,6 +298,7 @@ export function mapReservationSnapshot(snapshot: ReadSnapshot): ReservationView 
 const RESERVATIONS = 'reservations';
 const SLOTS = 'reservationSlots';
 const PUSH_JOBS = 'pushJobs';
+const UPCOMING_JAM_LIMIT = 5;
 
 type FirestoreModule = typeof import('firebase/firestore');
 
@@ -441,6 +443,22 @@ export async function fetchDayReservations(dayKey: string): Promise<ReservationV
   const { fs, db } = await loadFirestore();
   const snapshot = await fs.getDocs(
     fs.query(fs.collection(db, RESERVATIONS), fs.where('dayKey', '==', dayKey), fs.orderBy('startAt', 'asc')),
+  );
+  return snapshot.docs.map((docSnapshot) => mapReservationSnapshot(docSnapshot));
+}
+
+// 홈의 다음 합주 후보: 동아리 전체의 동아리방 합주. 진행 중인 합주(최대 1시간)까지 포함하도록 앞당긴다.
+export async function fetchUpcomingJamReservations(now: Date = new Date()): Promise<ReservationView[]> {
+  const { fs, db } = await loadFirestore();
+  const from = new Date(now.getTime() - JAM_MAX_SLOTS * SLOT_MINUTES * 60_000);
+  const snapshot = await fs.getDocs(
+    fs.query(
+      fs.collection(db, RESERVATIONS),
+      fs.where('tag', '==', 'jam'),
+      fs.where('startAt', '>=', fs.Timestamp.fromDate(from)),
+      fs.orderBy('startAt', 'asc'),
+      fs.limit(UPCOMING_JAM_LIMIT),
+    ),
   );
   return snapshot.docs.map((docSnapshot) => mapReservationSnapshot(docSnapshot));
 }
