@@ -96,7 +96,7 @@ function maxRoomMinutes(tag: Tag): number {
   return maxSlotsFor(tag) * SLOT_MINUTES;
 }
 
-// 동아리방 시작 선택지: 09:00–23:30, 30분 간격.
+// 동아리방 시작 선택지: 00:00–23:30, 30분 간격.
 export const ROOM_START_TIMES: string[] = Array.from(
   { length: (CLOSING_MINUTE - OPENING_MINUTE) / SLOT_MINUTES },
   (_, index) => formatMinute(OPENING_MINUTE + index * SLOT_MINUTES),
@@ -213,7 +213,7 @@ export function entryValidationMessage(reason: EntryDraftError): string {
     case 'room-span':
       return '동아리방 예약은 하루 안에서만 할 수 있어요. 여러 날 일정은 다른 장소로 등록해주세요.';
     case 'room-hours':
-      return '동아리방은 09:00–24:00 사이 30분 단위로 예약할 수 있어요.';
+      return '동아리방은 30분 단위로, 하루 안에서만 예약할 수 있어요.';
     case 'jam-too-long':
       return '합주는 한 번에 최대 1시간까지 예약할 수 있어요.';
     case 'kind-change':

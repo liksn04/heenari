@@ -424,3 +424,13 @@ button.timeline-item { padding-right: 2.6rem; cursor: pointer; }
 .profile-bio { margin: 0.2rem 0; color: var(--ink) !important; font-size: 0.86rem; overflow-wrap: anywhere; }
 .same-name-check { display: flex; align-items: flex-start; gap: 0.6rem; min-height: 44px; padding: 0.7rem 0.9rem; border: 1px solid rgba(255, 152, 24, 0.45); border-radius: 12px; color: #8a4a00; background: rgba(255, 152, 24, 0.12); font-size: 0.84rem; font-weight: 750; cursor: pointer; }
 .same-name-check input { flex: 0 0 auto; width: 1.15rem; height: 1.15rem; margin: 0.1rem 0 0; accent-color: var(--forest); }
+
+/* iOS 사파리: 날짜·시간 입력은 자체 최소 폭 때문에 width: 100%를 넘어 모달을 옆으로 밀어낸다.
+   입력이 칸 폭을 넘지 못하게 하고, 값도 왼쪽 정렬로 맞춘다. 모달 본문은 옆 스크롤을 막는다. */
+.field-block > * { min-width: 0; }
+.field-block input, .field-block select, .field-block textarea { min-width: 0; max-width: 100%; }
+.field-block input[type="date"], .field-block input[type="time"] {
+  display: block; -webkit-appearance: none; appearance: none; text-align: left;
+}
+.field-block input::-webkit-date-and-time-value { text-align: left; }
+.modal-body { overflow-x: hidden; }

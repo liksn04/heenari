@@ -25,7 +25,7 @@ export const RESERVATION_POLICY = {
   openingMinute: OPENING_MINUTE,
   closingMinute: CLOSING_MINUTE,
   minSlots: 1,
-  maxSlots: (CLOSING_MINUTE - OPENING_MINUTE) / SLOT_MINUTES, // 09:00–24:00 전체(30슬롯)
+  maxSlots: (CLOSING_MINUTE - OPENING_MINUTE) / SLOT_MINUTES, // 00:00–24:00 하루 전체(48슬롯)
   bookingWindowDays: 60,
   timeZone: 'Asia/Seoul',
   timeZoneOffset: SEOUL_OFFSET,

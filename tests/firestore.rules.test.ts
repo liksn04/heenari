@@ -158,8 +158,8 @@ describe('예약 create', () => {
     const db = testEnv.authenticatedContext('member-b', googleUser('member-b')).firestore();
     await assertFails(setDoc(doc(db, 'reservations', 'r-title'), reservationCreatePayload('member-b', { title: '가'.repeat(41) })));
     await assertFails(setDoc(doc(db, 'reservations', 'r-slots'), reservationCreatePayload('member-b', {
-      slotIds: Array.from({ length: 31 }, (_, i) => `${DAY_KEY}_slot-${i}`),
-      endAt: Timestamp.fromDate(new Date(START.getTime() + 31 * 30 * 60 * 1000)),
+      slotIds: Array.from({ length: 49 }, (_, i) => `${DAY_KEY}_slot-${i}`),
+      endAt: Timestamp.fromDate(new Date(START.getTime() + 49 * 30 * 60 * 1000)),
     })));
   });
 });
@@ -377,10 +377,12 @@ describe('events 쓰기', () => {
   });
 });
 
-// 태그: jam(합주)·lesson(강습)·etc(기타). 합주만 최대 1시간(2슬롯), 나머지는 운영 시간(최대 30슬롯) 안에서 제한 없음.
-function slotIdsFrom(count: number): string[] {
+// 태그: jam(합주)·lesson(강습)·etc(기타). 합주만 최대 1시간(2슬롯), 나머지는 하루(00:00–24:00, 최대 48슬롯) 안에서 제한 없음.
+const MIDNIGHT = new Date(Date.UTC(2029, 11, 31, 15, 0, 0)); // 2030-01-01 00:00 KST
+
+function slotIdsFrom(count: number, startMinute = 9 * 60): string[] {
   return Array.from({ length: count }, (_, i) => {
-    const minute = 9 * 60 + i * 30;
+    const minute = startMinute + i * 30;
     return `${DAY_KEY}_${String(Math.floor(minute / 60)).padStart(2, '0')}-${String(minute % 60).padStart(2, '0')}`;
   });
 }
@@ -414,11 +416,18 @@ describe('예약 태그', () => {
     await assertFails(setDoc(doc(db, 'reservations', 'bad-tag2'), taggedReservation('member-b', 'JAM', 1)));
   });
 
-  it('09:00–24:00 하루 전체(30슬롯) 예약을 슬롯과 한 배치로 만들 수 있다', async () => {
+  it('00:00–24:00 하루 전체(48슬롯) 예약을 슬롯과 한 배치로 만들 수 있다', async () => {
     const db = testEnv.authenticatedContext('member-b', googleUser('member-b')).firestore();
-    const slotIds = slotIdsFrom(30);
+    const slotIds = slotIdsFrom(48, 0);
     const batch = writeBatch(db);
-    batch.set(doc(db, 'reservations', 'r-full-day'), taggedReservation('member-b', 'lesson', 30));
+    batch.set(doc(db, 'reservations', 'r-full-day'), {
+      ...reservationCreatePayload('member-b', {
+        slotIds,
+        startAt: Timestamp.fromDate(MIDNIGHT),
+        endAt: Timestamp.fromDate(new Date(MIDNIGHT.getTime() + 48 * 30 * 60 * 1000)),
+      }),
+      tag: 'lesson',
+    });
     for (const slotId of slotIds) {
       batch.set(doc(db, 'reservationSlots', slotId), {
         reservationId: 'r-full-day',
@@ -433,6 +442,22 @@ describe('예약 태그', () => {
       await deleteDoc(doc(context.firestore(), 'reservationSlots', SLOT_ID));
     });
     await assertSucceeds(batch.commit());
+  });
+
+  it('새벽(00:00–09:00) 예약도 허용하고, 하루를 넘는 49슬롯은 거부한다', async () => {
+    const db = testEnv.authenticatedContext('member-b', googleUser('member-b')).firestore();
+    await assertSucceeds(setDoc(doc(db, 'reservations', 'dawn'), reservationCreatePayload('member-b', {
+      slotIds: slotIdsFrom(2, 60), // 01:00–02:00
+      startAt: Timestamp.fromDate(new Date(MIDNIGHT.getTime() + 60 * 60 * 1000)),
+      endAt: Timestamp.fromDate(new Date(MIDNIGHT.getTime() + 2 * 60 * 60 * 1000)),
+      tag: 'jam',
+    })));
+    await assertFails(setDoc(doc(db, 'reservations', 'too-long'), reservationCreatePayload('member-b', {
+      slotIds: Array.from({ length: 49 }, (_, i) => `${DAY_KEY}_x-${i}`),
+      startAt: Timestamp.fromDate(MIDNIGHT),
+      endAt: Timestamp.fromDate(new Date(MIDNIGHT.getTime() + 49 * 30 * 60 * 1000)),
+      tag: 'lesson',
+    })));
   });
 
   it('기존 합주 예약을 3슬롯으로 늘리는 수정은 거부한다', async () => {

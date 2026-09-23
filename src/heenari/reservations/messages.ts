@@ -5,7 +5,7 @@ export function validationMessage(reason: DraftInvalidReason): string {
     case 'empty':
       return '예약할 시간을 선택해주세요.';
     case 'too-many':
-      return '동아리방은 하루 운영 시간(09:00–24:00) 안에서만 예약할 수 있어요.';
+      return '동아리방은 하루(00:00–24:00) 안에서만 예약할 수 있어요.';
     case 'jam-too-long':
       return '합주는 한 번에 최대 1시간까지 예약할 수 있어요.';
     case 'not-contiguous':

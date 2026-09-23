@@ -57,7 +57,7 @@ service cloud.firestore {
       return !('tag' in d) || d.tag in ['jam', 'lesson', 'etc'];
     }
 
-    // 30분 = 1_800_000ms. 운영 시간 09:00–24:00 = 최대 30슬롯(15시간).
+    // 30분 = 1_800_000ms. 하루 00:00–24:00 = 최대 48슬롯(24시간).
     // 합주(jam)만 최대 1시간(2슬롯)이고 강습·기타는 길이 제한이 없다.
     function reservationShape(r) {
       return r.keys().hasOnly(['title', 'note', 'ownerId', 'ownerName', 'startAt', 'endAt', 'dayKey', 'slotIds', 'tag', 'participantIds', 'createdAt', 'updatedAt'])
@@ -67,7 +67,7 @@ service cloud.firestore {
         && r.ownerName is string && r.ownerName.size() >= 1 && r.ownerName.size() <= 60
         && r.startAt is timestamp && r.endAt is timestamp
         && r.dayKey is string && r.dayKey.size() == 10
-        && r.slotIds is list && r.slotIds.size() >= 1 && r.slotIds.size() <= 30
+        && r.slotIds is list && r.slotIds.size() >= 1 && r.slotIds.size() <= 48
         && r.startAt.toMillis() % 1800000 == 0
         && r.endAt.toMillis() - r.startAt.toMillis() == r.slotIds.size() * 1800000
         && validTag(r)
