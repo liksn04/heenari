@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import AppShell from './AppShell';
 import Login from './Login';
-import { HomePage, MyPage, NoticesPage, SchedulePage } from './pages';
+import { HomePage, MyPage, SchedulePage } from './pages';
 
 const auth = vi.hoisted(() => ({
   member: {
@@ -58,10 +58,6 @@ vi.mock('./members/ProfileSheet', () => ({
 
 vi.mock('./members/useMembers', () => ({
   useMembers: () => ({ status: 'ready', members: [], names: new Map([['u1', '김희나'], ['u2', '박드럼']]) }),
-}));
-
-vi.mock('./notices/useNotices', () => ({
-  useNotices: () => ({ status: 'ready', data: [], refresh: vi.fn() }),
 }));
 
 vi.mock('./schedule/useScheduleData', () => ({
@@ -160,13 +156,9 @@ describe('core pages', () => {
     render(<MemoryRouter><HomePage /></MemoryRouter>);
     expect(screen.getByRole('heading', { name: /김희나님/ })).toBeTruthy();
     const regions = screen.getAllByRole('region').map((region) => region.getAttribute('aria-label'));
-    expect(regions.slice(0, 2)).toEqual(['다음 합주', '동아리 공지']);
+    expect(regions[0]).toBe('다음 합주');
+    expect(regions).not.toContain('동아리 공지');
     expect(screen.getByRole('link', { name: '일정 화면에서 예약하기' }).getAttribute('href')).toBe('/schedule');
-  });
-
-  it('공지 화면은 동아리 공지 전체를 보여준다', () => {
-    render(<MemoryRouter initialEntries={['/notices']}><NoticesPage /></MemoryRouter>);
-    expect(screen.getByRole('heading', { level: 1, name: '동아리 공지' })).toBeTruthy();
   });
 
   it('일정 화면은 달력·선택일 빈 상태와 하나의 일정 추가 버튼을 보여준다', () => {
