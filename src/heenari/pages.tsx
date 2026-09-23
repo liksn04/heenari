@@ -1,9 +1,21 @@
 import { CalendarDays, ChevronRight, Clock3, LogOut, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useHeenariAuth } from './auth/authState';
+import { ReservationScheduler } from './reservations/ReservationScheduler';
+import { ReservationList } from './reservations/ReservationList';
+import { useMyUpcomingReservations } from './reservations/useMyUpcomingReservations';
+import { timeLabelOf } from './reservations/slots';
+
+function useViewer() {
+  const { user, member } = useHeenariAuth();
+  return { uid: user?.uid ?? '', name: member?.name ?? '회원' };
+}
 
 export function HomePage() {
   const { member } = useHeenariAuth();
+  const viewer = useViewer();
+  const { reservations } = useMyUpcomingReservations(viewer.uid);
+  const nextReservation = reservations[0] ?? null;
   const today = new Intl.DateTimeFormat('ko-KR', {
     month: 'long',
     day: 'numeric',
@@ -35,36 +47,30 @@ export function HomePage() {
           </div>
           <Link className="round-button" to="/reserve" aria-label="예약 화면으로 이동"><ChevronRight /></Link>
         </div>
-        <div className="empty-state compact-empty">
-          <Clock3 size={25} aria-hidden="true" />
-          <div>
-            <strong>예정된 예약이 없습니다</strong>
-            <p>필요한 시간을 30분 단위로 예약할 수 있어요.</p>
+        {nextReservation ? (
+          <div className="next-reservation">
+            <p className="reservation-time">
+              {nextReservation.dayKey} · {timeLabelOf(nextReservation.startAt)}–{timeLabelOf(nextReservation.endAt)}
+            </p>
+            <strong>{nextReservation.title}</strong>
           </div>
-        </div>
+        ) : (
+          <div className="empty-state compact-empty">
+            <Clock3 size={25} aria-hidden="true" />
+            <div>
+              <strong>예정된 예약이 없습니다</strong>
+              <p>필요한 시간을 30분 단위로 예약할 수 있어요.</p>
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );
 }
 
 export function ReservePage() {
-  return (
-    <div className="page-stack">
-      <section className="page-title">
-        <p className="eyebrow">30 MINUTE SLOT</p>
-        <h1>공간 예약</h1>
-        <p>30분 단위 예약 기능은 다음 구현 게이트에서 연결됩니다.</p>
-      </section>
-      <div className="slot-preview" aria-label="예약 슬롯 미리보기">
-        {['18:00', '18:30', '19:00', '19:30', '20:00', '20:30'].map((time, index) => (
-          <button key={time} disabled className={index === 2 ? 'preview-selected' : ''}>
-            <span>{time}</span>
-            <small>{index === 2 ? '선택 예시' : '예약 가능'}</small>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+  const viewer = useViewer();
+  return <ReservationScheduler viewer={viewer} />;
 }
 
 export function SchedulePage() {
@@ -86,6 +92,7 @@ export function SchedulePage() {
 
 export function MyPage() {
   const { member, signOut } = useHeenariAuth();
+  const viewer = useViewer();
   return (
     <div className="page-stack">
       <section className="profile-card">
@@ -96,6 +103,17 @@ export function MyPage() {
           <p>{member?.email}</p>
         </div>
       </section>
+
+      <section className="section-block">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">MY RESERVATIONS</p>
+            <h2>내 예정 예약</h2>
+          </div>
+        </div>
+        <ReservationList viewer={viewer} />
+      </section>
+
       <button className="secondary-button" type="button" onClick={() => void signOut()}>
         <LogOut size={18} /> 로그아웃
       </button>

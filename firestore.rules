@@ -8,14 +8,74 @@ service cloud.firestore {
         && request.auth.token.firebase.sign_in_provider == 'google.com';
     }
 
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+
+    // 30분 = 1_800_000ms, 4시간 = 14_400_000ms
+    function reservationShape(r) {
+      return r.keys().hasOnly(['title', 'note', 'ownerId', 'ownerName', 'startAt', 'endAt', 'dayKey', 'slotIds', 'createdAt', 'updatedAt'])
+        && r.title is string && r.title.size() >= 1 && r.title.size() <= 40
+        && (r.note == null || (r.note is string && r.note.size() <= 200))
+        && r.ownerId is string
+        && r.ownerName is string && r.ownerName.size() >= 1 && r.ownerName.size() <= 60
+        && r.startAt is timestamp && r.endAt is timestamp
+        && r.dayKey is string && r.dayKey.size() == 10
+        && r.slotIds is list && r.slotIds.size() >= 1 && r.slotIds.size() <= 8
+        && r.startAt.toMillis() % 1800000 == 0
+        && r.endAt.toMillis() - r.startAt.toMillis() == r.slotIds.size() * 1800000
+        && r.endAt.toMillis() - r.startAt.toMillis() <= 14400000;
+    }
+
+    // 슬롯 삭제는 대응 예약이 배치 이후 이 슬롯을 더 이상 소유하지 않을 때만 허용한다.
+    function slotReleased(database, slotId, reservationId) {
+      return !existsAfter(/databases/$(database)/documents/reservations/$(reservationId))
+        || !(getAfter(/databases/$(database)/documents/reservations/$(reservationId)).data.slotIds.hasAny([slotId]));
+    }
+
     match /reservations/{reservationId} {
       allow read: if verifiedGoogleUser();
-      allow write: if false;
+
+      allow create: if verifiedGoogleUser()
+        && reservationShape(request.resource.data)
+        && isOwner(request.resource.data.ownerId)
+        && request.resource.data.startAt > request.time
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      allow update: if verifiedGoogleUser()
+        && reservationShape(request.resource.data)
+        && isOwner(resource.data.ownerId)
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && resource.data.startAt > request.time
+        && request.resource.data.startAt > request.time
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if verifiedGoogleUser()
+        && isOwner(resource.data.ownerId)
+        && resource.data.startAt > request.time;
     }
 
     match /reservationSlots/{slotId} {
       allow read: if verifiedGoogleUser();
-      allow write: if false;
+
+      allow create: if verifiedGoogleUser()
+        && request.resource.data.keys().hasOnly(['reservationId', 'ownerId', 'dayKey', 'startsAt', 'createdAt'])
+        && isOwner(request.resource.data.ownerId)
+        && request.resource.data.reservationId is string && request.resource.data.reservationId.size() > 0
+        && request.resource.data.dayKey is string && request.resource.data.dayKey.size() == 10
+        && request.resource.data.startsAt is timestamp
+        && request.resource.data.createdAt == request.time
+        && existsAfter(/databases/$(database)/documents/reservations/$(request.resource.data.reservationId))
+        && getAfter(/databases/$(database)/documents/reservations/$(request.resource.data.reservationId)).data.ownerId == request.auth.uid
+        && getAfter(/databases/$(database)/documents/reservations/$(request.resource.data.reservationId)).data.slotIds.hasAny([slotId]);
+
+      allow update: if false;
+
+      allow delete: if verifiedGoogleUser()
+        && isOwner(resource.data.ownerId)
+        && slotReleased(database, slotId, resource.data.reservationId);
     }
 
     match /events/{eventId} {

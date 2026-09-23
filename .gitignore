@@ -32,3 +32,6 @@ coverage/
 output/playwright/
 repomix-logic.md
 repomix-output.xml
+
+# fablize goal-harness state (session-local)
+.fablize/

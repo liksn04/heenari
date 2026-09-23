@@ -23,6 +23,14 @@ vi.mock('./auth/authState', () => ({
   useHeenariAuth: () => auth,
 }));
 
+vi.mock('./reservations/useDayReservations', () => ({
+  useDayReservations: () => ({ status: 'ready', reservations: [], slots: [], error: null, refresh: vi.fn() }),
+}));
+
+vi.mock('./reservations/useMyUpcomingReservations', () => ({
+  useMyUpcomingReservations: () => ({ status: 'ready', reservations: [], error: null, refresh: vi.fn() }),
+}));
+
 beforeEach(() => {
   auth.member.role = 'member';
   auth.notice = null;
@@ -111,12 +119,15 @@ describe('core pages', () => {
     expect(screen.getByRole('link', { name: '예약 화면으로 이동' }).getAttribute('href')).toBe('/reserve');
   });
 
-  it('예약과 일정의 다음 게이트 상태를 명확히 보여준다', () => {
+  it('예약 화면은 달력과 예약하기 버튼을 보여준다', () => {
     const { unmount } = render(<ReservePage />);
     expect(screen.getByRole('heading', { name: '공간 예약' })).toBeTruthy();
-    expect(screen.getAllByRole('button')).toHaveLength(6);
+    expect(screen.getByRole('button', { name: '날짜를 선택하세요' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '다음 달' })).toBeTruthy();
     unmount();
+  });
 
+  it('일정 화면은 다음 게이트 안내를 보여준다', () => {
     render(<SchedulePage />);
     expect(screen.getByText('아직 등록된 일정이 없어요')).toBeTruthy();
   });
