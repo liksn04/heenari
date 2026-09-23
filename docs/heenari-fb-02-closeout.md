@@ -2,7 +2,8 @@
 
 작성일: 2026-09-22
 게이트: `docs/gates/HEENARI-FB-02-RESERVATION.md`
-상태: 완료. 로컬은 Java 부재로 Rules 에뮬레이터 테스트를 미실행했으나, **GitHub Actions CI(Java 17)에서 Rules 테스트 15개 전부 통과로 검증됨.**
+상태: 완료. Rules 에뮬레이터 테스트는 CI(Java 17)에서 15개 전부 통과했고,
+**프로덕션(`https://heenari-9f2a6.web.app`)에서 Google 로그인과 예약 생성까지 실사용으로 확인됨.**
 
 ## 결과
 
@@ -76,15 +77,16 @@ CI (GitHub Actions `verify`, Node 22 + Java 17 — 전부 통과, run 3570712491
   경쟁 테스트를 아직 작성하지 않았다. 트랜잭션 충돌 검출은 mock 단위 테스트로,
   슬롯 결정적 문서 ID + Rules 스키마는 CI에서 검증했으나, 동시 create 레이스
   자체를 재현하는 통합 테스트는 후속 과제다.
-- live 배포는 미수행. commit·push·PR은 사용자 요청으로 수행(아래 관련 커밋).
+- (해소) live 배포까지 완료했다. PR #1 병합 → Hosting 자동 배포, Firestore Rules와
+  인덱스는 `firebase deploy --only firestore`로 별도 배포했다.
 
 ## 남은 리스크
 
 - (해소) Firestore Rules와 Rules 테스트는 CI `verify`에서 에뮬레이터로 검증돼
   15개 전부 통과했다. 게이트 DoD "Rules Emulator 테스트가 통과한다"를 충족한다.
   로컬에서 재현하려면 JDK 설치 후 `npm run test:rules`.
-- Rules 배포 전 원격 인덱스 생성이 필요하다(`reservations` 복합 인덱스 2종).
-  인덱스 없이 쿼리하면 런타임 오류가 난다.
+- (해소) 복합 인덱스 2종(`reservations(dayKey,startAt)`, `reservations(ownerId,startAt)`)을
+  배포하고 `firestore:indexes`로 원격에서 직접 읽어 확인했다.
 - 예약 수정(시간 변경) 트랜잭션 로직·Rules는 구현했으나 이번 게이트 UI에는
   시간 변경 화면을 노출하지 않았다(제목/메모 수정과 취소만 UI 연결). 시간 변경
   UI는 후속 작업.
@@ -93,9 +95,9 @@ CI (GitHub Actions `verify`, Node 22 + Java 17 — 전부 통과, run 3570712491
 
 ## 다음 handoff
 
-- **배포 활성화:** 저장소 시크릿(`FIREBASE_SERVICE_ACCOUNT_HEENARI_9F2A6`,
-  `VITE_FIREBASE_*` 6종) 추가 후 PR 머지 → Firebase Hosting 자동 배포. Rules와
-  indexes는 Hosting과 별도 배포(`firebase deploy --only firestore`).
+- (완료) 시크릿 등록 → PR 병합 → Hosting 자동 배포, Firestore Rules·인덱스 별도 배포까지
+  마쳤다. 운영 중 배포 제약은 `AI_START_HERE.md` 3절을 따른다(특히 authDomain은
+  `web.app`이어야 하고 OAuth 리디렉션 URI가 짝으로 등록돼 있어야 함).
 - **HEENARI-FB-03 일정과 통합 홈:** 관리자 일정 CRUD + 회원 통합 일정 화면.
   관리자 권한(Custom Claims 등) 신뢰 소스 도입은 별도 보안 게이트.
 
