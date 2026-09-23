@@ -12,6 +12,7 @@ import {
 import { resolveGoogleMember, type MemberProfile } from './access';
 import { getFirebaseServices, hasFirebaseConfig } from '../lib/firebase';
 import { fetchIsAdmin } from '../admin/adminAccess';
+import { ensureMemberProfile } from '../members/memberRepository';
 import { AuthContext, type AuthContextValue, type AuthStatus } from './authState';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -43,6 +44,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (access.status === 'allowed') {
         setMember(access.member);
         setStatus('allowed');
+        // 명부에 없으면 Google 이름으로 만들고, 있으면 회원이 고친 프로필 이름을 앱 전체에 쓴다.
+        ensureMemberProfile(nextUser.uid, access.member.name)
+          .then((profile) => {
+            if (services.auth.currentUser?.uid !== nextUser.uid) return;
+            setMember((current) => (current ? { ...current, name: profile.name } : current));
+          })
+          .catch((error: unknown) => console.warn('회원 명부를 불러오지 못했습니다.', error));
         // 역할 표시는 진입을 막지 않고 뒤따라 반영한다. 실제 권한 경계는 Rules다.
         fetchIsAdmin(nextUser.uid)
           .then((isAdmin) => {
@@ -88,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loginWithGoogle,
     signOut,
     clearNotice: () => setNotice(null),
+    updateMemberName: (name: string) => setMember((current) => (current ? { ...current, name } : current)),
   }), [loginWithGoogle, member, notice, signOut, status, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

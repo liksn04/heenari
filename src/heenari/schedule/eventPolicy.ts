@@ -57,18 +57,18 @@ export function parseEventDraft(draft: EventDraft): EventInput {
   if (draft.allDay) {
     const startAt = parseInstant(draft.startDate, '00:00');
     if (!startAt) throw new EventValidationError('start');
-    return { title, description, location, allDay: true, tag: draft.tag, startAt, endAt: null };
+    return { title, description, location, allDay: true, tag: draft.tag, participantIds: draft.participantIds, startAt, endAt: null };
   }
 
   const startAt = parseInstant(draft.startDate, draft.startTime);
   if (!startAt) throw new EventValidationError('start');
-  if (draft.endTime === '') return { title, description, location, allDay: false, tag: draft.tag, startAt, endAt: null };
+  if (draft.endTime === '') return { title, description, location, allDay: false, tag: draft.tag, participantIds: draft.participantIds, startAt, endAt: null };
 
   const endAt = parseInstant(draft.endDate === '' ? draft.startDate : draft.endDate, draft.endTime);
   if (!endAt) throw new EventValidationError('end');
   if (endAt.getTime() <= startAt.getTime()) throw new EventValidationError('end-order');
   if (endAt.getTime() - startAt.getTime() > MAX_EVENT_DURATION_MS) throw new EventValidationError('too-long');
-  return { title, description, location, allDay: false, tag: draft.tag, startAt, endAt };
+  return { title, description, location, allDay: false, tag: draft.tag, participantIds: draft.participantIds, startAt, endAt };
 }
 
 export function emptyEventDraft(dayKey: string): EventDraft {
@@ -78,6 +78,7 @@ export function emptyEventDraft(dayKey: string): EventDraft {
     location: '',
     allDay: false,
     tag: 'etc',
+    participantIds: [],
     startDate: dayKey,
     startTime: '18:00',
     endDate: dayKey,
@@ -93,6 +94,7 @@ export function draftFromEvent(event: ClubEventView): EventDraft {
     location: event.location ?? '',
     allDay: event.allDay,
     tag: event.tag ?? 'etc',
+    participantIds: event.participantIds,
     startDate,
     startTime: event.allDay ? '18:00' : timeLabelOf(event.startAt),
     endDate: event.endAt ? dayKeyOf(event.endAt) : startDate,

@@ -13,6 +13,7 @@ export interface ClubEventView {
   endAt: Date | null; // allDay면 null
   allDay: boolean; // true면 startAt은 KST 00:00
   tag: Tag | null; // 태그가 없던 기존 일정은 null
+  participantIds: string[]; // 합주 초대 참여자(작성자 제외)
   createdBy: string;
 }
 
@@ -23,6 +24,7 @@ export interface EventDraft {
   location: string;
   allDay: boolean;
   tag: Tag;
+  participantIds: string[]; // 합주 초대 참여자
   startDate: string;
   startTime: string;
   endDate: string;
@@ -36,6 +38,7 @@ export interface EventInput {
   location: string | null;
   allDay: boolean;
   tag: Tag;
+  participantIds: string[];
   startAt: Date;
   endAt: Date | null;
 }
@@ -49,6 +52,7 @@ interface TimelineBase {
   tag: Tag | null;
   place: string | null;
   ownerId: string;
+  participantIds: string[];
   ownerName: string | null;
 }
 

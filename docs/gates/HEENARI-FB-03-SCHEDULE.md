@@ -1,6 +1,6 @@
 # HEENARI-FB-03 — 일정과 통합 홈
 
-상태: 완료(로컬 검증, 미배포) (`docs/heenari-fb-03-closeout.md`)
+상태: 완료, 배포됨(Hosting·Firestore Rules, 2026-09-23) (`docs/heenari-fb-03-closeout.md`)
 선행 게이트: HEENARI-FB-02 30분 예약 엔진(완료, `docs/heenari-fb-02-closeout.md`)
 Source of truth: `docs/heenari-lite-capability.md`
 

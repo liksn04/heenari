@@ -142,16 +142,18 @@ export function planEntry(draft: EntryDraft): EntryPlan {
   if (title.length < 1 || title.length > ENTRY_LIMITS.titleMax) throw new EntryValidationError('title');
   const description = draft.description.trim();
   if (description.length > ENTRY_LIMITS.descriptionMax) throw new EntryValidationError('description');
+  // 초대는 합주에만. 다른 태그로 바꾸면 고른 회원은 저장하지 않는다.
+  const participantIds = draft.tag === 'jam' ? draft.participantIds : [];
 
   if (draft.place === 'room' && !draft.allDay) {
     return {
       kind: 'reservation',
-      draft: { title, note: description === '' ? null : description, tag: draft.tag, slotIds: roomSlotIds(draft) },
+      draft: { title, note: description === '' ? null : description, tag: draft.tag, participantIds, slotIds: roomSlotIds(draft) },
     };
   }
 
   const { place, ...rest } = draft;
-  const eventDraft: EventDraft = { ...rest, location: place === 'room' ? ROOM_NAME : draft.location };
+  const eventDraft: EventDraft = { ...rest, participantIds, location: place === 'room' ? ROOM_NAME : draft.location };
   try {
     parseEventDraft(eventDraft);
   } catch (error) {
@@ -169,6 +171,7 @@ export function emptyEntryDraft(dayKey: string): EntryDraft {
     place: 'room',
     allDay: false,
     tag: 'jam',
+    participantIds: [],
     startDate: dayKey,
     startTime: '18:00',
     endDate: dayKey,
@@ -184,6 +187,7 @@ export function draftFromReservation(reservation: ReservationView): EntryDraft {
     place: 'room',
     allDay: false,
     tag: reservation.tag ?? 'etc',
+    participantIds: reservation.participantIds,
     startDate: reservation.dayKey,
     startTime: timeLabelOf(reservation.startAt),
     endDate: dayKeyOf(reservation.endAt),

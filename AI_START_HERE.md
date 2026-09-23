@@ -8,7 +8,7 @@
 1. `AI_START_HERE.md`
 2. `AGENTS.md`
 3. `docs/heenari-lite-capability.md`
-4. `docs/gates/HEENARI-FB-03-SCHEDULE.md`
+4. `docs/gates/HEENARI-FB-04-PWA-JAM-INVITES.md`
 5. 관련 소스와 테스트
 6. `docs/*-closeout.md`는 완료 증거가 필요할 때만 확인
 
@@ -31,18 +31,18 @@
 - 멀티테넌시
 - 회비·예산·회계
 - 채팅·댓글
-- 푸시·이메일·문자 알림
+- 이메일·문자 알림(푸시는 FB-04의 합주 초대·1시간 전 알림만)
 - 여러 공간
 - Google 외 인증 provider
 - 회원 이메일 허용 목록
-- PWA 설치·오프라인 캐시(별도 후속 게이트)
 
 ## 3. 현재 외부 상태
 
 - Firebase project: `heenari-9f2a6`
 - Firestore: `(default)`, Standard edition, `asia-northeast3`, free tier
 - Hosting live URL: `https://heenari-9f2a6.web.app`
-- 현재 배포물은 모바일 최적화 웹앱이며, 설치형 PWA manifest와 service worker는 아직 구현되지 않음
+- 현재 배포물은 모바일 최적화 웹앱이다. FB-04(PWA·합주 초대·알림)는 코드 완료, 미배포.
+  알림 Worker(`notifier/`)와 웹 푸시 키·서비스 계정은 아직 설정되지 않았다(`notifier/README.md`).
 - Google Auth: 활성화 및 실제 로그인·예약 생성까지 프로덕션에서 확인 완료
 - Authorized domains: `localhost`, `heenari-9f2a6.web.app`,
   `heenari-9f2a6.firebaseapp.com`
@@ -58,10 +58,11 @@
 - 위 두 값은 저장소에 없다. authDomain은 `.env.local`과 GitHub Actions 시크릿에,
   리디렉션 URI는 Google Cloud 콘솔에만 있다. 되돌리면 로그인이 조용히 깨지므로
   확인 없이 `firebaseapp.com`으로 바꾸지 않는다.
-- 원격 Firestore Rules: FB-02 시점 규칙. FB-03의 `admins`·`events` 규칙은 아직
-  배포되지 않았다(로컬 에뮬레이터 29개 통과, 배포는 사용자 요청 시).
+- 원격 Firestore Rules: 저장소 `firestore.rules`와 일치(2026-09-23 FB-03 머지 `5608751` 후
+  `deploy --only firestore`로 배포, 컴파일 성공·release 확인).
 - Firestore 쓰기: 예약과 슬롯은 본인 소유 문서에 한해 허용(HEENARI-FB-02 Rules 배포 완료).
-  `settings` 쓰기는 계속 거부. (로컬, 미배포) `events`는 회원 본인 명의 생성, 작성자·관리자 수정·삭제
+  `settings` 쓰기는 계속 거부. `events`는 회원 본인 명의 생성, 작성자·관리자 수정·삭제.
+  예약·일정 `tag`(jam·lesson·etc) 검증, 합주 예약 최대 2슬롯. `admins`는 Console에서만 쓴다.
 - 배포된 복합 인덱스: `reservations(dayKey, startAt)`, `reservations(ownerId, startAt)`
 - CI/CD: GitHub Actions. `main` 병합 시 Hosting 자동 배포, PR은 미리보기 채널 배포.
   Firestore Rules와 인덱스는 자동 배포에 **포함되지 않으므로**
@@ -122,16 +123,15 @@ tests/firestore.rules.test.ts     Emulator Rules 테스트
 
 ## 7. 활성 게이트
 
-활성 게이트는 `HEENARI-FB-03 일정과 통합 홈` 하나뿐이다.
-`HEENARI-FB-02 30분 예약 엔진`은 완료됐다(`docs/heenari-fb-02-closeout.md`).
+활성 게이트는 `HEENARI-FB-04 PWA·합주 초대·알림` 하나뿐이다.
+FB-02(예약 엔진)와 FB-03(예약·일정 통합, 태그)은 완료·배포됐다.
 
 구현 전에 반드시 읽을 문서:
 
-- `docs/gates/HEENARI-FB-03-SCHEDULE.md`
+- `docs/gates/HEENARI-FB-04-PWA-JAM-INVITES.md`
 
-관리자 판정은 Firebase Console에서만 관리하는 `admins/{uid}` 문서로 한다(2026-09-23
-확정). 관리자의 타인 예약 정리, 관리자 지정 UI, PWA 설치 기능은 이 게이트에 섞지
-않는다.
+관리자 판정은 Firebase Console에서만 관리하는 `admins/{uid}` 문서로 한다. 알림 발송은
+Cloudflare Worker(`notifier/`)가 맡고, 서비스 계정 키는 Worker 비밀값으로만 둔다.
 
 ## 8. 기본 검증
 

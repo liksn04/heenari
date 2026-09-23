@@ -1,5 +1,6 @@
 import { getFirebaseDb } from '../lib/firebase';
 import { isTag } from '../reservations/policy';
+import { buildInviteJob, newInvitees, normalizeParticipants, readParticipantIds } from '../members/invites';
 import { MAX_EVENT_DURATION_MS, eventOverlaps, parseEventDraft } from './eventPolicy';
 import type { ClubEventView, EventDraft, EventInput } from './types';
 
@@ -31,6 +32,7 @@ export function mapEventSnapshot(snapshot: ReadSnapshot): ClubEventView {
     endAt: data.endAt ? toDate(data.endAt) : null,
     allDay: data.allDay === true,
     tag: isTag(data.tag) ? data.tag : null,
+    participantIds: readParticipantIds(data.participantIds),
     createdBy: data.createdBy as string,
   };
 }
@@ -38,6 +40,7 @@ export function mapEventSnapshot(snapshot: ReadSnapshot): ClubEventView {
 // ---- Firestore 배선 (Firestore SDK는 인증 이후에만 동적 로드) ----------------
 
 const EVENTS = 'events';
+const PUSH_JOBS = 'pushJobs';
 const UPCOMING_LIMIT = 20;
 
 type FirestoreModule = typeof import('firebase/firestore');
@@ -87,22 +90,52 @@ export async function fetchUpcomingEventCandidates(now: Date = new Date()): Prom
   return snapshot.docs.map((docSnapshot) => mapEventSnapshot(docSnapshot));
 }
 
-export async function createEvent(draft: EventDraft, adminId: string): Promise<string> {
+// 일정과 초대 알림 작업을 한 배치로 쓴다. 작업은 새 참여자가 있을 때만.
+export async function createEvent(draft: EventDraft, authorId: string): Promise<string> {
   const input = parseEventDraft(draft);
   const { fs, db } = await loadFirestore();
-  const ref = await fs.addDoc(fs.collection(db, EVENTS), {
+  const participants = normalizeParticipants(input.participantIds, authorId);
+  const ref = fs.doc(fs.collection(db, EVENTS));
+  const batch = fs.writeBatch(db);
+  batch.set(ref, {
     ...eventFields(fs, input),
-    createdBy: adminId,
+    participantIds: participants,
+    createdBy: authorId,
     createdAt: fs.serverTimestamp(),
     updatedAt: fs.serverTimestamp(),
   });
+  if (participants.length > 0) {
+    batch.set(fs.doc(fs.collection(db, PUSH_JOBS)), buildInviteJob('events', ref.id, participants, authorId, fs.serverTimestamp()));
+  }
+  await batch.commit();
   return ref.id;
 }
 
-export async function updateEvent(eventId: string, draft: EventDraft): Promise<void> {
+export class EventNotFoundError extends Error {
+  constructor() {
+    super('일정을 찾을 수 없어요.');
+    this.name = 'EventNotFoundError';
+  }
+}
+
+// 기존 참여자를 읽어 새로 초대된 회원에게만 알림 작업을 쓴다.
+// Rules상 알림 작업은 작성자만 만들 수 있어, 관리자가 남의 일정을 고칠 때는 작업을 쓰지 않는다.
+export async function updateEvent(eventId: string, draft: EventDraft, viewerId: string): Promise<void> {
   const input = parseEventDraft(draft);
   const { fs, db } = await loadFirestore();
-  await fs.updateDoc(fs.doc(db, EVENTS, eventId), { ...eventFields(fs, input), updatedAt: fs.serverTimestamp() });
+  const ref = fs.doc(db, EVENTS, eventId);
+  await fs.runTransaction(db, async (tx) => {
+    const snapshot = await tx.get(ref);
+    if (!snapshot.exists()) throw new EventNotFoundError();
+    const current = snapshot.data() as { createdBy?: string; participantIds?: unknown };
+    const authorId = current.createdBy ?? viewerId;
+    const participants = normalizeParticipants(input.participantIds, authorId);
+    tx.update(ref, { ...eventFields(fs, input), participantIds: participants, updatedAt: fs.serverTimestamp() });
+    const invited = newInvitees(readParticipantIds(current.participantIds), participants);
+    if (invited.length > 0 && authorId === viewerId) {
+      tx.set(fs.doc(fs.collection(db, PUSH_JOBS)), buildInviteJob('events', eventId, invited, viewerId, fs.serverTimestamp()));
+    }
+  });
 }
 
 export async function deleteEvent(eventId: string): Promise<void> {

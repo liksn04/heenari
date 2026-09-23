@@ -21,6 +21,7 @@ function reservationItem(reservation: ReservationView): TimelineItem {
     tag: reservation.tag,
     place: ROOM_NAME,
     ownerId: reservation.ownerId,
+    participantIds: reservation.participantIds,
     ownerName: reservation.ownerName,
     reservation,
   };
@@ -37,6 +38,7 @@ function eventItem(event: ClubEventView): TimelineItem {
     tag: event.tag,
     place: event.location,
     ownerId: event.createdBy,
+    participantIds: event.participantIds,
     ownerName: null,
     event,
   };

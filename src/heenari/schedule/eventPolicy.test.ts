@@ -23,6 +23,7 @@ function draft(overrides: Partial<EventDraft> = {}): EventDraft {
     location: '',
     allDay: false,
     tag: 'etc',
+    participantIds: [],
     startDate: '2026-10-02',
     startTime: '19:00',
     endDate: '2026-10-02',
@@ -41,6 +42,7 @@ function event(overrides: Partial<ClubEventView> = {}): ClubEventView {
     endAt: kstInstant('2026-10-02', '21:00'),
     allDay: false,
     tag: null,
+    participantIds: [],
     createdBy: 'admin',
     ...overrides,
   };
@@ -71,6 +73,7 @@ describe('parseEventDraft', () => {
       location: '동아리방',
       allDay: false,
       tag: 'etc',
+      participantIds: [],
       startAt: new Date('2026-10-02T10:00:00.000Z'),
       endAt: new Date('2026-10-02T12:00:00.000Z'),
     });
@@ -135,6 +138,7 @@ describe('draft 변환', () => {
       location: '강당',
       allDay: false,
       tag: 'etc', // 태그 없던 일정은 기타로 수정된다
+      participantIds: [],
       startAt: original.startAt,
       endAt: original.endAt,
     });

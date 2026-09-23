@@ -13,6 +13,11 @@ const m = vi.hoisted(() => ({
   rescheduleReservation: vi.fn(),
   cancelReservation: vi.fn(),
   online: { current: true },
+  members: { status: 'ready' as 'loading' | 'ready' | 'error', members: [] as { uid: string; name: string }[] },
+}));
+
+vi.mock('../members/useMembers', () => ({
+  useMembers: () => ({ ...m.members, names: new Map(m.members.members.map((member) => [member.uid, member.name])) }),
 }));
 
 vi.mock('./eventRepository', () => ({
@@ -45,12 +50,12 @@ const onStale = vi.fn();
 const myReservation: ReservationView = {
   id: 'r1', title: '보컬 연습', note: '마이크', ownerId: 'u1', ownerName: '김희나',
   startAt: kstInstant('2030-01-01', '18:00'), endAt: kstInstant('2030-01-01', '19:00'),
-  dayKey: '2030-01-01', slotIds: ['2030-01-01_18-00', '2030-01-01_18-30'], tag: 'lesson',
+  dayKey: '2030-01-01', slotIds: ['2030-01-01_18-00', '2030-01-01_18-30'], tag: 'lesson', participantIds: [],
 };
 
 const myEvent: ClubEventView = {
   id: 'e1', title: '가을 공연', description: null, location: '대강당',
-  startAt: kstInstant('2030-01-02', '19:00'), endAt: kstInstant('2030-01-02', '21:00'), allDay: false, tag: 'lesson', createdBy: 'u1',
+  startAt: kstInstant('2030-01-02', '19:00'), endAt: kstInstant('2030-01-02', '21:00'), allDay: false, tag: 'lesson', participantIds: [], createdBy: 'u1',
 };
 
 function renderSheet(mode: EntrySheetMode = { kind: 'create', dayKey: '2030-01-01' }) {
@@ -62,6 +67,7 @@ beforeEach(() => {
     fn.mockReset().mockResolvedValue(undefined);
   }
   m.online.current = true;
+  m.members = { status: 'ready', members: [{ uid: 'u1', name: '김희나' }, { uid: 'u2', name: '이나리' }, { uid: 'u3', name: '박드럼' }] };
   onClose.mockReset();
   onSaved.mockReset();
   onStale.mockReset();
@@ -80,7 +86,7 @@ describe('EntrySheet 추가', () => {
     await user.click(screen.getByRole('button', { name: '저장' }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith('일정을 추가했어요.'));
     expect(m.createReservation).toHaveBeenCalledWith({
-      draft: { title: '합주', note: null, tag: 'jam', slotIds: ['2030-01-01_18-00', '2030-01-01_18-30'] },
+      draft: { title: '합주', note: null, tag: 'jam', participantIds: [], slotIds: ['2030-01-01_18-00', '2030-01-01_18-30'] },
       ownerId: 'u1',
       ownerName: '김희나',
     });
@@ -128,7 +134,7 @@ describe('EntrySheet 추가', () => {
     await user.type(screen.getByLabelText('제목'), '심야 합주');
     await user.click(screen.getByRole('button', { name: '저장' }));
     await waitFor(() => expect(m.createReservation).toHaveBeenCalledWith(
-      expect.objectContaining({ draft: { title: '심야 합주', note: null, tag: 'jam', slotIds: ['2030-01-01_23-30'] } }),
+      expect.objectContaining({ draft: { title: '심야 합주', note: null, tag: 'jam', participantIds: [], slotIds: ['2030-01-01_23-30'] } }),
     ));
   });
 
@@ -249,6 +255,63 @@ describe('EntrySheet 추가', () => {
   });
 });
 
+describe('EntrySheet 합주 초대', () => {
+  it('합주일 때만 나를 뺀 회원 목록이 나오고, 고른 회원을 참여자로 저장한다', async () => {
+    const user = userEvent.setup();
+    renderSheet();
+    expect(screen.getByRole('group', { name: '함께할 회원 (선택)' })).toBeTruthy();
+    expect(screen.queryByRole('checkbox', { name: '김희나' })).toBeNull(); // 나 자신은 제외
+    await user.click(screen.getByRole('checkbox', { name: '이나리' }));
+    await user.click(screen.getByRole('checkbox', { name: '박드럼' }));
+    await user.click(screen.getByRole('checkbox', { name: '박드럼' }));
+    expect(screen.getByText('1명 선택됨')).toBeTruthy();
+    await user.type(screen.getByLabelText('제목'), '합주');
+    await user.click(screen.getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(m.createReservation).toHaveBeenCalledWith(
+      expect.objectContaining({ draft: expect.objectContaining({ participantIds: ['u2'] }) }),
+    ));
+  });
+
+  it('강습·기타로 바꾸면 초대 목록을 숨기고 참여자를 저장하지 않는다', async () => {
+    const user = userEvent.setup();
+    renderSheet();
+    await user.click(screen.getByRole('checkbox', { name: '이나리' }));
+    await user.click(screen.getByRole('button', { name: '강습' }));
+    expect(screen.queryByRole('group', { name: '함께할 회원 (선택)' })).toBeNull();
+    await user.type(screen.getByLabelText('제목'), '보컬 강습');
+    await user.click(screen.getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(m.createReservation).toHaveBeenCalledWith(
+      expect.objectContaining({ draft: expect.objectContaining({ tag: 'lesson', participantIds: [] }) }),
+    ));
+  });
+
+  it('명부를 불러오는 중·실패·비어 있음을 안내한다', () => {
+    m.members = { status: 'loading', members: [] };
+    const { rerender } = renderSheet();
+    expect(screen.getByText('회원 목록을 불러오고 있어요…')).toBeTruthy();
+    m.members = { status: 'error', members: [] };
+    rerender(<EntrySheet mode={{ kind: 'create', dayKey: '2030-01-01' }} viewer={viewer} onClose={onClose} onSaved={onSaved} onStale={onStale} />);
+    expect(screen.getByText(/회원 목록을 불러오지 못했어요/)).toBeTruthy();
+    m.members = { status: 'ready', members: [{ uid: 'u1', name: '김희나' }] };
+    rerender(<EntrySheet mode={{ kind: 'create', dayKey: '2030-01-01' }} viewer={viewer} onClose={onClose} onSaved={onSaved} onStale={onStale} />);
+    expect(screen.getByText(/초대할 수 있는 회원이 없어요/)).toBeTruthy();
+  });
+
+  it('20명을 고르면 나머지 회원은 고를 수 없다', async () => {
+    m.members = { status: 'ready', members: Array.from({ length: 22 }, (_, i) => ({ uid: `m${i}`, name: `회원${String(i).padStart(2, '0')}` })) };
+    const user = userEvent.setup();
+    renderSheet();
+    for (let i = 0; i < 20; i += 1) await user.click(screen.getByRole('checkbox', { name: `회원${String(i).padStart(2, '0')}` }));
+    expect((screen.getByRole('checkbox', { name: '회원20' }) as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByRole('checkbox', { name: '회원00' }) as HTMLInputElement).disabled).toBe(false);
+  });
+
+  it('수정할 때는 기존 참여자가 선택돼 있다', () => {
+    renderSheet({ kind: 'edit-reservation', reservation: { ...myReservation, tag: 'jam', participantIds: ['u3'], endAt: kstInstant('2030-01-01', '19:00') } });
+    expect((screen.getByRole('checkbox', { name: '박드럼' }) as HTMLInputElement).checked).toBe(true);
+  });
+});
+
 describe('EntrySheet 수정·삭제', () => {
   it('내 예약을 같은 모달로 열어 시간까지 바꿔 저장한다', async () => {
     const user = userEvent.setup();
@@ -261,7 +324,7 @@ describe('EntrySheet 수정·삭제', () => {
     expect(m.rescheduleReservation).toHaveBeenCalledWith({
       reservationId: 'r1',
       viewerId: 'u1',
-      draft: { title: '보컬 연습', note: '마이크', tag: 'lesson', slotIds: ['2030-01-01_18-00', '2030-01-01_18-30', '2030-01-01_19-00', '2030-01-01_19-30'] },
+      draft: { title: '보컬 연습', note: '마이크', tag: 'lesson', participantIds: [], slotIds: ['2030-01-01_18-00', '2030-01-01_18-30', '2030-01-01_19-00', '2030-01-01_19-30'] },
     });
   });
 
@@ -289,7 +352,7 @@ describe('EntrySheet 수정·삭제', () => {
     expect(screen.getByRole('button', { name: '다른 장소' }).getAttribute('aria-pressed')).toBe('true');
     expect((screen.getByLabelText('장소 이름 (선택)') as HTMLInputElement).value).toBe('대강당');
     await user.click(screen.getByRole('button', { name: '저장' }));
-    await waitFor(() => expect(m.updateEvent).toHaveBeenCalledWith('e1', expect.objectContaining({ title: '가을 공연', location: '대강당' })));
+    await waitFor(() => expect(m.updateEvent).toHaveBeenCalledWith('e1', expect.objectContaining({ title: '가을 공연', location: '대강당' }), 'u1'));
   });
 
   it('삭제는 확인 단계를 거쳐 예약이면 슬롯까지, 일정이면 문서를 지운다', async () => {

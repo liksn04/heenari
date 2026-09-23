@@ -12,6 +12,7 @@ import {
 } from './policy';
 import { slotIdToStartAt } from './slots';
 import type { ReservationDraft, ReservationView } from './types';
+import { buildInviteJob, newInvitees, normalizeParticipants, readParticipantIds } from '../members/invites';
 
 // ---- 오류 ------------------------------------------------------------------
 
@@ -133,6 +134,7 @@ export function buildReservationData(input: ReservationDataInput, time: TimeAdap
     dayKey: input.window.dayKey,
     slotIds: sortedSlotIds(input.draft.slotIds),
     tag: input.draft.tag ?? 'etc',
+    participantIds: normalizeParticipants(input.draft.participantIds ?? [], input.ownerId),
     createdAt: time.serverTimestamp(),
     updatedAt: time.serverTimestamp(),
   };
@@ -156,10 +158,16 @@ export function buildSlotData(
 
 // ---- 트랜잭션 본문 (계약: 모든 read 이후에만 write) ------------------------
 
+export interface WritePlan {
+  ref: DocRefLike;
+  data: Record<string, unknown>;
+}
+
 export interface CreatePlan {
   reservationRef: DocRefLike;
   reservationData: Record<string, unknown>;
-  slots: { ref: DocRefLike; data: Record<string, unknown> }[];
+  slots: WritePlan[];
+  inviteJob?: WritePlan; // 참여자가 있으면 같은 트랜잭션에 초대 알림 작업을 쓴다
 }
 
 export async function applyCreate(tx: WriteTransaction, plan: CreatePlan): Promise<void> {
@@ -168,12 +176,14 @@ export async function applyCreate(tx: WriteTransaction, plan: CreatePlan): Promi
 
   tx.set(plan.reservationRef, plan.reservationData);
   for (const slot of plan.slots) tx.set(slot.ref, slot.data);
+  if (plan.inviteJob) tx.set(plan.inviteJob.ref, plan.inviteJob.data);
 }
 
 interface OwnedReservation {
   ownerId: string;
   slotIds: string[];
   startAt: unknown;
+  participantIds?: unknown;
 }
 
 async function readOwnedFutureReservation(
@@ -213,8 +223,10 @@ export interface ReschedulePlan {
   viewerId: string;
   now: Date;
   newSlotIds: string[];
+  newParticipantIds?: string[];
   reservationUpdate: Record<string, unknown>;
   slotData: (slotId: string) => Record<string, unknown>;
+  inviteJob?: (targetIds: string[]) => WritePlan;
 }
 
 export async function applyReschedule(tx: WriteTransaction, plan: ReschedulePlan): Promise<void> {
@@ -236,6 +248,12 @@ export async function applyReschedule(tx: WriteTransaction, plan: ReschedulePlan
   for (const slotId of removed) tx.delete(plan.slotRef(slotId));
   tx.update(plan.reservationRef, plan.reservationUpdate);
   for (const slotId of added) tx.set(plan.slotRef(slotId), plan.slotData(slotId));
+
+  const invited = newInvitees(readParticipantIds(data.participantIds), plan.newParticipantIds ?? []);
+  if (invited.length > 0 && plan.inviteJob) {
+    const job = plan.inviteJob(invited);
+    tx.set(job.ref, job.data);
+  }
 }
 
 export interface DetailPlan {
@@ -270,6 +288,7 @@ export function mapReservationSnapshot(snapshot: ReadSnapshot): ReservationView 
     dayKey: data.dayKey as string,
     slotIds: (data.slotIds as string[]) ?? [],
     tag: isTag(data.tag) ? data.tag : null,
+    participantIds: readParticipantIds(data.participantIds),
   };
 }
 
@@ -277,6 +296,7 @@ export function mapReservationSnapshot(snapshot: ReadSnapshot): ReservationView 
 
 const RESERVATIONS = 'reservations';
 const SLOTS = 'reservationSlots';
+const PUSH_JOBS = 'pushJobs';
 
 type FirestoreModule = typeof import('firebase/firestore');
 
@@ -316,9 +336,16 @@ export async function createReservation(input: CreateReservationInput): Promise<
     ref: slotRef(slotId),
     data: buildSlotData(slotId, input.ownerId, reservationRef.id, window.dayKey, time),
   }));
+  const participants = reservationData.participantIds as string[];
+  const inviteJob: WritePlan | undefined = participants.length > 0
+    ? {
+      ref: fs.doc(fs.collection(db, PUSH_JOBS)),
+      data: buildInviteJob('reservations', reservationRef.id, participants, input.ownerId, fs.serverTimestamp()),
+    }
+    : undefined;
 
   await fs.runTransaction(db, (tx) =>
-    applyCreate(tx as unknown as WriteTransaction, { reservationRef, reservationData, slots }),
+    applyCreate(tx as unknown as WriteTransaction, { reservationRef, reservationData, slots, inviteJob }),
   );
   return reservationRef.id;
 }
@@ -380,6 +407,7 @@ export async function rescheduleReservation(input: RescheduleInput): Promise<voi
   const slotRef = (slotId: string): DocRefLike => fs.doc(db, SLOTS, slotId);
   const reservationRef: DocRefLike = fs.doc(db, RESERVATIONS, input.reservationId);
   const newSlotIds = sortedSlotIds(input.draft.slotIds);
+  const newParticipantIds = normalizeParticipants(input.draft.participantIds ?? [], input.viewerId);
 
   await fs.runTransaction(db, (tx) =>
     applyReschedule(tx as unknown as WriteTransaction, {
@@ -388,6 +416,11 @@ export async function rescheduleReservation(input: RescheduleInput): Promise<voi
       viewerId: input.viewerId,
       now,
       newSlotIds,
+      newParticipantIds,
+      inviteJob: (targetIds) => ({
+        ref: fs.doc(fs.collection(db, PUSH_JOBS)),
+        data: buildInviteJob('reservations', input.reservationId, targetIds, input.viewerId, fs.serverTimestamp()),
+      }),
       reservationUpdate: {
         title: input.draft.title.trim(),
         note: normalizeNote(input.draft.note),
@@ -396,6 +429,7 @@ export async function rescheduleReservation(input: RescheduleInput): Promise<voi
         dayKey: window.dayKey,
         slotIds: newSlotIds,
         tag: input.draft.tag ?? 'etc',
+        participantIds: newParticipantIds,
         updatedAt: fs.serverTimestamp(),
       },
       slotData: (slotId) => buildSlotData(slotId, input.viewerId, input.reservationId, window.dayKey, time),
@@ -411,15 +445,15 @@ export async function fetchDayReservations(dayKey: string): Promise<ReservationV
   return snapshot.docs.map((docSnapshot) => mapReservationSnapshot(docSnapshot));
 }
 
+// 내가 잡은 예약과 초대받은 예약을 함께, 시작 시각순으로.
 export async function fetchMyUpcomingReservations(ownerId: string, now: Date = new Date()): Promise<ReservationView[]> {
   const { fs, db } = await loadFirestore();
-  const snapshot = await fs.getDocs(
-    fs.query(
-      fs.collection(db, RESERVATIONS),
-      fs.where('ownerId', '==', ownerId),
-      fs.where('startAt', '>=', fs.Timestamp.fromDate(now)),
-      fs.orderBy('startAt', 'asc'),
-    ),
-  );
-  return snapshot.docs.map((docSnapshot) => mapReservationSnapshot(docSnapshot));
+  const from = fs.Timestamp.fromDate(now);
+  const [owned, invited] = await Promise.all([
+    fs.getDocs(fs.query(fs.collection(db, RESERVATIONS), fs.where('ownerId', '==', ownerId), fs.where('startAt', '>=', from), fs.orderBy('startAt', 'asc'))),
+    fs.getDocs(fs.query(fs.collection(db, RESERVATIONS), fs.where('participantIds', 'array-contains', ownerId), fs.where('startAt', '>=', from), fs.orderBy('startAt', 'asc'))),
+  ]);
+  const byId = new Map<string, ReservationView>();
+  for (const docSnapshot of [...owned.docs, ...invited.docs]) byId.set(docSnapshot.id, mapReservationSnapshot(docSnapshot));
+  return [...byId.values()].sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
 }

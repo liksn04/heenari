@@ -1,10 +1,14 @@
-import { CalendarDays, ChevronRight, Clock3, LogOut, MapPin, Sparkles } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { CalendarDays, ChevronRight, Clock3, LogOut, MapPin, Sparkles, UserPen } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useHeenariAuth } from './auth/authState';
 import { ReservationList } from './reservations/ReservationList';
 import { useMyUpcomingReservations } from './reservations/useMyUpcomingReservations';
 import { dayKeyOf, timeLabelOf } from './reservations/slots';
 import { ScheduleBoard } from './schedule/ScheduleBoard';
+import { AppSettings } from './push/AppSettings';
+import { ProfileSheet } from './members/ProfileSheet';
+import { useMyProfile } from './members/useMyProfile';
 import { formatEventRange, spansMultipleDays } from './schedule/eventPolicy';
 import { buildTimeline, dayLabel } from './schedule/timeline';
 import { useDayTimeline, useUpcomingEvent } from './schedule/useScheduleData';
@@ -137,22 +141,48 @@ export function HomePage() {
 export function SchedulePage() {
   const { member } = useHeenariAuth();
   const viewer = useViewer();
-  return <ScheduleBoard viewer={{ ...viewer, isAdmin: member?.role === 'admin' }} />;
+  const [params] = useSearchParams();
+  return <ScheduleBoard viewer={{ ...viewer, isAdmin: member?.role === 'admin' }} initialDay={params.get('day')} />;
 }
 
 export function MyPage() {
-  const { member, signOut } = useHeenariAuth();
+  const { member, signOut, updateMemberName } = useHeenariAuth();
   const viewer = useViewer();
+  const myProfile = useMyProfile(viewer.uid);
+  const [editing, setEditing] = useState(false);
+  const profile = myProfile.profile;
+  const displayName = profile?.name ?? member?.name ?? '회원';
   return (
     <div className="page-stack">
       <section className="profile-card">
-        <div className="profile-avatar">{member?.name.slice(0, 1)}</div>
-        <div>
+        <div className="profile-avatar">{displayName.slice(0, 1)}</div>
+        <div className="profile-info">
           <p className="eyebrow">{member?.role === 'admin' ? 'ADMIN' : 'MEMBER'}</p>
-          <h1>{member?.name}</h1>
+          <h1>{displayName}</h1>
+          {profile?.bio && <p className="profile-bio">{profile.bio}</p>}
           <p>{member?.email}</p>
         </div>
       </section>
+      <button
+        type="button"
+        className="secondary-button"
+        disabled={myProfile.status === 'loading'}
+        onClick={() => setEditing(true)}
+      >
+        <UserPen size={18} aria-hidden="true" /> 프로필 편집
+      </button>
+      {editing && (
+        <ProfileSheet
+          uid={viewer.uid}
+          initial={profile ?? { name: displayName, bio: null }}
+          onClose={() => setEditing(false)}
+          onSaved={(saved) => {
+            myProfile.replace(saved);
+            updateMemberName(saved.name);
+            setEditing(false);
+          }}
+        />
+      )}
 
       <section className="section-block">
         <div className="section-heading">
@@ -162,6 +192,16 @@ export function MyPage() {
           </div>
         </div>
         <ReservationList viewer={viewer} />
+      </section>
+
+      <section className="section-block">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">APP &amp; ALERTS</p>
+            <h2>앱과 알림</h2>
+          </div>
+        </div>
+        <AppSettings uid={viewer.uid} />
       </section>
 
       <button className="secondary-button" type="button" onClick={() => void signOut()}>

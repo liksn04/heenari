@@ -14,7 +14,8 @@
 - `firestore.rules`: 데이터 접근 권한의 최종 보안 경계
 - `tests/firestore.rules.test.ts`: Emulator 기반 Rules 검증
 - `docs/heenari-lite-capability.md`: 제품·기술 source of truth
-- `docs/gates/HEENARI-FB-03-SCHEDULE.md`: 현재 활성 구현 게이트
+- `docs/gates/HEENARI-FB-04-PWA-JAM-INVITES.md`: 현재 활성 구현 게이트
+- `notifier/`: 푸시 발송 Cloudflare Worker(합주 초대·1시간 전 알림)
 
 ## Rules
 
@@ -25,7 +26,9 @@
 - Firestore 쓰기는 Rules와 테스트 없이 추가하지 않는다.
 - 예약은 30분 경계와 원자적 슬롯 잠금을 지켜야 한다.
 - Firebase 설정값과 실제 계정 정보는 커밋하지 않는다.
-- 범용화, 멀티테넌시, 회계·채팅·알림 기능을 추측해서 추가하지 않는다.
+- 범용화, 멀티테넌시, 회계·채팅 기능을 추측해서 추가하지 않는다. 알림은 FB-04에서 정한 합주
+  초대·1시간 전 푸시만 둔다.
+- 서비스 계정 키는 저장소·클라이언트에 두지 않는다(Worker 비밀값으로만).
 
 ## Validation
 
@@ -41,6 +44,6 @@ Rules 변경 시 Java Runtime이 있는 환경에서 `npm run test:rules`도 실
 
 ## Active Gate
 
-현재 활성 게이트는 `HEENARI-FB-03 일정과 통합 홈` 하나다. 관리자 판정은
-Console 전용 `admins/{uid}` 문서로만 하며, 관리자의 타인 예약 정리나 PWA 기능을
+현재 활성 게이트는 `HEENARI-FB-04 PWA·합주 초대·알림` 하나다. 알림 발송은 Cloudflare
+Worker(`notifier/`)가 맡고 Firebase는 Spark 요금제를 유지한다. 관리자의 타인 예약 정리는
 섞지 않는다. live 배포와 commit/push는 별도 요청 없이는 수행하지 않는다.

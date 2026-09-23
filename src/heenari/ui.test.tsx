@@ -17,6 +17,7 @@ const auth = vi.hoisted(() => ({
   loginWithGoogle: vi.fn(),
   signOut: vi.fn(),
   clearNotice: vi.fn(),
+  updateMemberName: vi.fn(),
 }));
 
 vi.mock('./auth/authState', () => ({
@@ -38,6 +39,21 @@ const schedule = vi.hoisted(() => ({
     data: { reservations: [] as unknown[], events: [] as unknown[] },
   },
   refresh: vi.fn(),
+}));
+
+const profileState = vi.hoisted(() => ({
+  current: { status: 'ready', profile: { name: '김희나', bio: '주말 합주 환영' } as null | { name: string; bio: string | null } },
+  replace: vi.fn(),
+}));
+
+vi.mock('./members/useMyProfile', () => ({ useMyProfile: () => ({ ...profileState.current, replace: profileState.replace }) }));
+vi.mock('./members/ProfileSheet', () => ({
+  ProfileSheet: ({ onSaved, onClose }: { onSaved: (p: { name: string; bio: null }) => void; onClose: () => void }) => (
+    <div role="dialog" aria-label="프로필 편집">
+      <button type="button" onClick={() => onSaved({ name: '희나', bio: null })}>저장</button>
+      <button type="button" onClick={onClose}>닫기</button>
+    </div>
+  ),
 }));
 
 vi.mock('./schedule/useScheduleData', () => ({
@@ -139,7 +155,7 @@ describe('core pages', () => {
   });
 
   it('일정 화면은 달력·선택일 빈 상태와 하나의 일정 추가 버튼을 보여준다', () => {
-    render(<SchedulePage />);
+    render(<MemoryRouter initialEntries={["/schedule"]}><SchedulePage /></MemoryRouter>);
     expect(screen.getByRole('heading', { name: '일정', level: 1 })).toBeTruthy();
     expect(screen.getByText('이 날은 일정이 없어요')).toBeTruthy();
     expect(screen.getAllByRole('button', { name: '일정 추가' })).toHaveLength(1);
@@ -150,7 +166,7 @@ describe('core pages', () => {
     const start = new Date(Date.now() + 60 * 60 * 1000);
     schedule.upcoming = {
       status: 'ready',
-      data: { id: 'e1', title: '가을 정기 공연', description: null, location: '대강당', startAt: start, endAt: null, allDay: false, tag: null, createdBy: 'a' },
+      data: { id: 'e1', title: '가을 정기 공연', description: null, location: '대강당', startAt: start, endAt: null, allDay: false, tag: null, participantIds: [], createdBy: 'a' },
     };
     const todayStart = new Date();
     schedule.today = {
@@ -159,7 +175,7 @@ describe('core pages', () => {
         reservations: [],
         events: [1, 2, 3, 4].map((n) => ({
           id: `t${n}`, title: `오늘 일정 ${n}`, description: null, location: n === 1 ? '대강당' : null,
-          startAt: todayStart, endAt: null, allDay: true, tag: null, createdBy: 'a',
+          startAt: todayStart, endAt: null, allDay: true, tag: null, participantIds: [], createdBy: 'a',
         })),
       },
     };
@@ -193,6 +209,30 @@ describe('core pages', () => {
     expect(screen.getByText('일정을 불러오지 못했어요')).toBeTruthy();
     await userEvent.setup().click(screen.getByRole('button', { name: '다시 시도' }));
     expect(schedule.refresh).toHaveBeenCalledOnce();
+  });
+
+  it('내 정보는 프로필(이름·한줄소개)을 보여주고 편집하면 이름을 반영한다', async () => {
+    const user = userEvent.setup();
+    render(<MyPage />);
+    expect(screen.getByRole('heading', { name: '김희나' })).toBeTruthy();
+    expect(screen.queryByRole('list', { name: '담당 세션' })).toBeNull();
+    expect(screen.getByText('주말 합주 환영')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /프로필 편집/ }));
+    await user.click(screen.getByRole('button', { name: '저장' }));
+    expect(profileState.replace).toHaveBeenCalledWith({ name: '희나', bio: null });
+    expect(auth.updateMemberName).toHaveBeenCalledWith('희나');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await user.click(screen.getByRole('button', { name: /프로필 편집/ }));
+    await user.click(screen.getByRole('button', { name: '닫기' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('프로필을 아직 못 불러오면 로그인 이름으로 보여준다', () => {
+    profileState.current = { status: 'loading', profile: null };
+    render(<MyPage />);
+    expect(screen.getByRole('heading', { name: '김희나' })).toBeTruthy();
+    expect((screen.getByRole('button', { name: /프로필 편집/ }) as HTMLButtonElement).disabled).toBe(true);
+    profileState.current = { status: 'ready', profile: { name: '김희나', bio: '주말 합주 환영' } };
   });
 
   it('내 정보에서 로그아웃할 수 있다', async () => {

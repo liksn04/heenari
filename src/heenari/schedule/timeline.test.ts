@@ -16,6 +16,7 @@ function reservation(id: string, start: string, end: string, overrides: Partial<
     dayKey: '2026-10-02',
     slotIds: [],
     tag: 'jam',
+    participantIds: [],
     ...overrides,
   };
 }
@@ -30,6 +31,7 @@ function event(id: string, overrides: Partial<ClubEventView> = {}): ClubEventVie
     endAt: null,
     allDay: false,
     tag: 'lesson',
+    participantIds: [],
     createdBy: 'admin',
     ...overrides,
   };

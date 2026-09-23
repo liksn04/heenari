@@ -23,6 +23,11 @@ const m = vi.hoisted(() => ({
   sheetModes: [] as unknown[],
 }));
 
+vi.mock('../members/useMembers', () => ({
+  useMembers: () => ({ status: 'ready', members: [], names: new Map([['u1', '김희나'], ['u3', '박드럼']]) }),
+}));
+
+
 vi.mock('./useScheduleData', () => ({
   useDayTimeline: (dayKey: string, version: number) => {
     m.dayCalls.push([dayKey, version]);
@@ -62,7 +67,7 @@ function reservation(overrides: Partial<ReservationView> = {}): ReservationView 
   const start = new Date(Date.now() + 2 * HOUR);
   return {
     id: 'r1', title: '보컬 연습', note: null, ownerId: 'u2', ownerName: '이나리',
-    startAt: start, endAt: new Date(start.getTime() + HOUR), dayKey: today, slotIds: [], tag: 'jam',
+    startAt: start, endAt: new Date(start.getTime() + HOUR), dayKey: today, slotIds: [], tag: 'jam', participantIds: [],
     ...overrides,
   };
 }
@@ -70,7 +75,7 @@ function reservation(overrides: Partial<ReservationView> = {}): ReservationView 
 function event(overrides: Partial<ClubEventView> = {}): ClubEventView {
   return {
     id: 'e1', title: '정기 총회', description: null, location: '강당',
-    startAt: kstInstant(today), endAt: null, allDay: true, tag: 'etc', createdBy: 'admin-x',
+    startAt: kstInstant(today), endAt: null, allDay: true, tag: 'etc', participantIds: [], createdBy: 'admin-x',
     ...overrides,
   };
 }
@@ -172,5 +177,34 @@ describe('ScheduleBoard', () => {
     render(<ScheduleBoard viewer={admin} />);
     expect(screen.getByRole('button', { name: '정기 총회 수정' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: '보컬 연습 수정' })).toBeNull();
+  });
+
+  it('초대받은 합주는 초대됨·함께한 회원만 보여주고 빠지기는 없다', () => {
+    m.day.reservations = [reservation({ id: 'r-jam', title: '밴드 합주', ownerId: 'u2', participantIds: ['u1', 'u3'] })];
+    m.day.events = [event({ id: 'e-jam', title: '외부 합주', createdBy: 'u2', participantIds: ['u1', 'ghost'] })];
+    render(<ScheduleBoard viewer={member} />);
+    const items = within(screen.getByRole('list', { name: '선택일 일정' })).getAllByRole('listitem');
+    const jam = items.find((item) => item.textContent?.includes('밴드 합주'))!;
+    expect(jam.textContent).toContain('초대됨');
+    expect(jam.textContent).toContain('함께: 김희나, 박드럼');
+    expect(items.find((item) => item.textContent?.includes('외부 합주'))!.textContent).toContain('함께: 회원 2명');
+    expect(screen.queryByRole('button', { name: /빠지기/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: '밴드 합주 수정' })).toBeNull();
+  });
+
+  it('내가 잡은 합주에는 수정만 있다', () => {
+    m.day.reservations = [reservation({ id: 'mine', title: '내 합주', ownerId: 'u1', participantIds: ['u3'] })];
+    render(<ScheduleBoard viewer={member} />);
+    expect(screen.queryByRole('button', { name: '내 합주에서 빠지기' })).toBeNull();
+    expect(screen.getByRole('button', { name: '내 합주 수정' })).toBeTruthy();
+  });
+
+  it('알림에서 넘어온 날짜를 먼저 보여주고, 잘못된 값은 무시한다', () => {
+    const { unmount } = render(<ScheduleBoard viewer={member} initialDay="2030-03-15" />);
+    expect(m.dayCalls.at(-1)).toEqual(['2030-03-15', 0]);
+    expect(m.monthCalls.at(-1)).toEqual(['2030-03-01', 0]);
+    unmount();
+    render(<ScheduleBoard viewer={member} initialDay="nope" />);
+    expect(m.dayCalls.at(-1)).toEqual([today, 0]);
   });
 });

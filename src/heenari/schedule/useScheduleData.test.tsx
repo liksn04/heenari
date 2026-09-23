@@ -18,7 +18,7 @@ vi.mock('./eventRepository', () => ({
 import { useDayTimeline, useMonthEventDays, useUpcomingEvent } from './useScheduleData';
 
 function event(id: string, start: Date, overrides: Partial<ClubEventView> = {}): ClubEventView {
-  return { id, title: id, description: null, location: null, startAt: start, endAt: null, allDay: false, tag: null, createdBy: 'a', ...overrides };
+  return { id, title: id, description: null, location: null, startAt: start, endAt: null, allDay: false, tag: null, participantIds: [], createdBy: 'a', ...overrides };
 }
 
 beforeEach(() => {

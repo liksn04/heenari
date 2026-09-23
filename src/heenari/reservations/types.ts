@@ -13,6 +13,7 @@ export interface Reservation {
   dayKey: string; // YYYY-MM-DD, Asia/Seoul
   slotIds: string[]; // 1..30, 정렬·연속·중복 없음
   tag?: Tag; // 태그가 없는 기존 예약도 있다
+  participantIds?: string[]; // 0..20, 작성자 제외, 참여자는 자기만 뺄 수 있다
   createdAt: Timestamp; // immutable
   updatedAt: Timestamp;
 }
@@ -37,6 +38,7 @@ export interface ReservationView {
   dayKey: string;
   slotIds: string[];
   tag: Tag | null; // 태그가 없던 기존 예약은 null
+  participantIds: string[]; // 합주 초대 참여자(작성자 제외)
 }
 
 export interface ReservationDraft {
@@ -44,4 +46,5 @@ export interface ReservationDraft {
   note: string | null;
   slotIds: string[];
   tag?: Tag; // 생략하면 기타로 저장
+  participantIds?: string[]; // 합주 초대 참여자
 }
