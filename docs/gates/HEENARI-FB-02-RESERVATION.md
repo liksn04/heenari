@@ -1,6 +1,6 @@
 # HEENARI-FB-02 — 30분 예약 엔진
 
-상태: 구현 준비 완료
+상태: 완료 (`docs/heenari-fb-02-closeout.md`)
 선행 게이트: Google 인증·Firestore·Hosting 완료
 Source of truth: `docs/heenari-lite-capability.md`
 
@@ -29,7 +29,7 @@ Next handoff: HEENARI-FB-03 일정과 통합 홈
 - 슬롯 단위: 30분
 - 예약 가능 시간 기본값: 09:00–24:00
 - 최소 예약: 1슬롯, 30분
-- 최대 연속 예약: 8슬롯, 4시간
+- 최대 연속 예약: 8슬롯, 4시간 — **FB-03에서 태그 규칙으로 대체**(합주 1시간, 강습·기타 제한 없음)
 - 예약 가능 기간: 오늘부터 60일
 - 선택 슬롯은 비어 있고 연속되어야 한다.
 - 시작 시각이 지난 예약은 일반 사용자가 수정·취소할 수 없다.

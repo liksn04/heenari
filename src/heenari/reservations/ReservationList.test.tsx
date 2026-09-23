@@ -29,6 +29,7 @@ function view(id: string, title: string): ReservationView {
     endAt: new Date('2026-09-22T10:00:00.000Z'),
     dayKey: '2026-09-22',
     slotIds: ['2026-09-22_18-00', '2026-09-22_18-30'],
+    tag: 'jam',
   };
 }
 
@@ -42,7 +43,7 @@ afterEach(cleanup);
 describe('ReservationList', () => {
   it('예약이 없으면 빈 상태를 보여준다', () => {
     render(<ReservationList viewer={viewer} />);
-    expect(screen.getByText('예정된 예약이 없어요')).toBeTruthy();
+    expect(screen.getByText('잡아둔 동아리방 시간이 없어요')).toBeTruthy();
   });
 
   it('예약 항목의 시간(Asia/Seoul)과 제목을 보여준다', () => {

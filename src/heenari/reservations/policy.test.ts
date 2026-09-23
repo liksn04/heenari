@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   isBookableDay,
+  JAM_MAX_SLOTS,
+  maxSlotsFor,
+  TAG_LABELS,
+  TAGS,
   isSlotAligned,
   RESERVATION_POLICY,
   reservationWindow,
@@ -13,7 +17,8 @@ describe('RESERVATION_POLICY', () => {
   it('고정 정책 값을 노출한다', () => {
     expect(RESERVATION_POLICY.slotMinutes).toBe(30);
     expect(RESERVATION_POLICY.minSlots).toBe(1);
-    expect(RESERVATION_POLICY.maxSlots).toBe(8);
+    expect(RESERVATION_POLICY.maxSlots).toBe(30); // 09:00–24:00 전체
+    expect(JAM_MAX_SLOTS).toBe(2); // 합주 1시간
     expect(RESERVATION_POLICY.bookingWindowDays).toBe(60);
     expect(RESERVATION_POLICY.timeZoneOffset).toBe('+09:00');
   });
@@ -34,11 +39,11 @@ describe('validateSlotSelection', () => {
     expect(validateSlotSelection(['2026-09-22_09-00'])).toBeNull();
   });
 
-  it('연속된 8개 슬롯(4시간)을 허용한다', () => {
-    const ids = [
-      '2026-09-22_09-00', '2026-09-22_09-30', '2026-09-22_10-00', '2026-09-22_10-30',
-      '2026-09-22_11-00', '2026-09-22_11-30', '2026-09-22_12-00', '2026-09-22_12-30',
-    ];
+  it('09:00–24:00 전체 30개 연속 슬롯을 허용한다', () => {
+    const ids = Array.from({ length: 30 }, (_, i) => {
+      const minute = 9 * 60 + i * 30;
+      return `2026-09-22_${String(Math.floor(minute / 60)).padStart(2, '0')}-${String(minute % 60).padStart(2, '0')}`;
+    });
     expect(validateSlotSelection(ids)).toBeNull();
   });
 
@@ -46,12 +51,8 @@ describe('validateSlotSelection', () => {
     expect(validateSlotSelection([])).toBe('empty');
   });
 
-  it('9개(4시간 초과) 선택을 거부한다', () => {
-    const ids = [
-      '2026-09-22_09-00', '2026-09-22_09-30', '2026-09-22_10-00', '2026-09-22_10-30',
-      '2026-09-22_11-00', '2026-09-22_11-30', '2026-09-22_12-00', '2026-09-22_12-30',
-      '2026-09-22_13-00',
-    ];
+  it('30개를 넘는 선택을 거부한다', () => {
+    const ids = Array.from({ length: 31 }, (_, i) => `2026-09-22_x-${i}`);
     expect(validateSlotSelection(ids)).toBe('too-many');
   });
 
@@ -112,5 +113,15 @@ describe('isBookableDay', () => {
   it('60일째를 허용하고 61일째를 거부한다', () => {
     expect(isBookableDay('2026-11-21', now)).toBe(true);  // +60일
     expect(isBookableDay('2026-11-22', now)).toBe(false); // +61일
+  });
+});
+
+describe('태그', () => {
+  it('합주·강습·기타 세 가지이고 합주만 1시간으로 제한한다', () => {
+    expect(TAGS).toEqual(['jam', 'lesson', 'etc']);
+    expect(TAG_LABELS).toEqual({ jam: '합주', lesson: '강습', etc: '기타' });
+    expect(maxSlotsFor('jam')).toBe(2);
+    expect(maxSlotsFor('lesson')).toBe(30);
+    expect(maxSlotsFor('etc')).toBe(30);
   });
 });

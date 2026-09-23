@@ -1,6 +1,8 @@
 import { getFirebaseDb } from '../lib/firebase';
 import {
   isBookableDay,
+  isTag,
+  maxSlotsFor,
   reservationWindow,
   validateNote,
   validateSlotSelection,
@@ -13,7 +15,7 @@ import type { ReservationDraft, ReservationView } from './types';
 
 // ---- 오류 ------------------------------------------------------------------
 
-export type DraftInvalidReason = SlotSelectionError | 'title' | 'note' | 'out-of-window' | 'past';
+export type DraftInvalidReason = SlotSelectionError | 'jam-too-long' | 'title' | 'note' | 'out-of-window' | 'past';
 
 export class ReservationValidationError extends Error {
   readonly reason: DraftInvalidReason;
@@ -99,6 +101,7 @@ function normalizeNote(note: string | null): string | null {
 export function assertValidDraft(draft: ReservationDraft, now: Date = new Date()): ReservationWindow {
   const selectionError = validateSlotSelection(draft.slotIds);
   if (selectionError) throw new ReservationValidationError(selectionError);
+  if (draft.slotIds.length > maxSlotsFor(draft.tag ?? 'etc')) throw new ReservationValidationError('jam-too-long');
   if (!validateTitle(draft.title)) throw new ReservationValidationError('title');
   if (!validateNote(draft.note)) throw new ReservationValidationError('note');
 
@@ -129,6 +132,7 @@ export function buildReservationData(input: ReservationDataInput, time: TimeAdap
     endAt: time.fromDate(input.window.endAt),
     dayKey: input.window.dayKey,
     slotIds: sortedSlotIds(input.draft.slotIds),
+    tag: input.draft.tag ?? 'etc',
     createdAt: time.serverTimestamp(),
     updatedAt: time.serverTimestamp(),
   };
@@ -265,6 +269,7 @@ export function mapReservationSnapshot(snapshot: ReadSnapshot): ReservationView 
     endAt: toDate(data.endAt),
     dayKey: data.dayKey as string,
     slotIds: (data.slotIds as string[]) ?? [],
+    tag: isTag(data.tag) ? data.tag : null,
   };
 }
 
@@ -390,6 +395,7 @@ export async function rescheduleReservation(input: RescheduleInput): Promise<voi
         endAt: time.fromDate(window.endAt),
         dayKey: window.dayKey,
         slotIds: newSlotIds,
+        tag: input.draft.tag ?? 'etc',
         updatedAt: fs.serverTimestamp(),
       },
       slotData: (slotId) => buildSlotData(slotId, input.viewerId, input.reservationId, window.dayKey, time),

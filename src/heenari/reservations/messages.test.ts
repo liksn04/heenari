@@ -5,7 +5,8 @@ import type { DraftInvalidReason } from './repository';
 describe('validationMessage', () => {
   const cases: [DraftInvalidReason, RegExp][] = [
     ['empty', /시간을 선택/],
-    ['too-many', /최대 4시간/],
+    ['too-many', /09:00–24:00/],
+    ['jam-too-long', /합주는 한 번에 최대 1시간/],
     ['not-contiguous', /연속된 시간/],
     ['mixed-day', /연속된 시간/],
     ['duplicate', /다시 확인/],

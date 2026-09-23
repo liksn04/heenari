@@ -9,13 +9,23 @@ import {
   slotIdToStartAt,
 } from './slots';
 
+// 태그: 합주·강습·기타. 합주만 길이 제한(1시간)이 있다. firestore.rules의 validTag와 같은 값.
+export const TAGS = ['jam', 'lesson', 'etc'] as const;
+export type Tag = (typeof TAGS)[number];
+export const TAG_LABELS: Record<Tag, string> = { jam: '합주', lesson: '강습', etc: '기타' };
+export const JAM_MAX_SLOTS = 2; // 1시간
+
+export function isTag(value: unknown): value is Tag {
+  return typeof value === 'string' && (TAGS as readonly string[]).includes(value);
+}
+
 // 고정 제품 정책. Firestore Rules와 클라이언트가 같은 값을 공유하도록 테스트로 고정한다.
 export const RESERVATION_POLICY = {
   slotMinutes: SLOT_MINUTES,
   openingMinute: OPENING_MINUTE,
   closingMinute: CLOSING_MINUTE,
   minSlots: 1,
-  maxSlots: 8, // 4시간
+  maxSlots: (CLOSING_MINUTE - OPENING_MINUTE) / SLOT_MINUTES, // 09:00–24:00 전체(30슬롯)
   bookingWindowDays: 60,
   timeZone: 'Asia/Seoul',
   timeZoneOffset: SEOUL_OFFSET,
@@ -23,6 +33,10 @@ export const RESERVATION_POLICY = {
   noteMax: 200,
   ownerNameMax: 60,
 } as const;
+
+export function maxSlotsFor(tag: Tag): number {
+  return tag === 'jam' ? JAM_MAX_SLOTS : RESERVATION_POLICY.maxSlots;
+}
 
 export type SlotSelectionError =
   | 'empty'

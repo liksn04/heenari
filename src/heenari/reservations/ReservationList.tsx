@@ -40,8 +40,8 @@ export function ReservationList({ viewer }: { viewer: { uid: string } }) {
       <div className="empty-state compact-empty">
         <CalendarClock size={22} aria-hidden="true" />
         <div>
-          <strong>예정된 예약이 없어요</strong>
-          <p>예약 화면에서 30분 단위로 공간을 예약할 수 있어요.</p>
+          <strong>잡아둔 동아리방 시간이 없어요</strong>
+          <p>일정에서 장소를 동아리방으로 두면 30분 단위로 잡아둘 수 있어요.</p>
         </div>
       </div>
     );
@@ -50,7 +50,7 @@ export function ReservationList({ viewer }: { viewer: { uid: string } }) {
   return (
     <>
       {message && <p className="form-message" role="status" data-tone="error">{message}</p>}
-      <ul className="reservation-list" aria-label="내 예정 예약">
+      <ul className="reservation-list" aria-label="내 동아리방 시간">
         {reservations.map((reservation) => (
           <li key={reservation.id} className="reservation-item">
             <div className="reservation-info">

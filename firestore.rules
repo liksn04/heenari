@@ -12,19 +12,56 @@ service cloud.firestore {
       return request.auth.uid == uid;
     }
 
-    // 30분 = 1_800_000ms, 4시간 = 14_400_000ms
+    // 관리자 판정의 유일한 신뢰 소스: Console에서만 쓰는 admins/{uid} 문서의 존재.
+    function isAdmin() {
+      return verifiedGoogleUser()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function optionalText(value, max) {
+      return value == null || (value is string && value.size() >= 1 && value.size() <= max);
+    }
+
+    // 종일 일정: KST 00:00 시작(UTC 15:00 = 54_000_000ms), 종료 없음.
+    // 시간 일정: 종료 없음 또는 시작 이후 72시간(259_200_000ms) 이내.
+    function eventShape(e) {
+      return e.keys().hasOnly(['title', 'description', 'location', 'startAt', 'endAt', 'allDay', 'tag', 'createdBy', 'createdAt', 'updatedAt'])
+        && e.keys().hasAll(['title', 'description', 'location', 'startAt', 'endAt', 'allDay', 'createdBy', 'createdAt', 'updatedAt'])
+        && e.title is string && e.title.size() >= 1 && e.title.size() <= 60
+        && optionalText(e.description, 500)
+        && optionalText(e.location, 60)
+        && e.startAt is timestamp
+        && e.allDay is bool
+        && e.createdBy is string
+        && validTag(e)
+        && (e.allDay
+          ? (e.endAt == null && e.startAt.toMillis() % 86400000 == 54000000)
+          : (e.endAt == null
+            || (e.endAt is timestamp
+              && e.endAt > e.startAt
+              && e.endAt.toMillis() - e.startAt.toMillis() <= 259200000)));
+    }
+
+    // 태그: jam(합주)·lesson(강습)·etc(기타). 태그가 없는 기존 문서도 허용한다.
+    function validTag(d) {
+      return !('tag' in d) || d.tag in ['jam', 'lesson', 'etc'];
+    }
+
+    // 30분 = 1_800_000ms. 운영 시간 09:00–24:00 = 최대 30슬롯(15시간).
+    // 합주(jam)만 최대 1시간(2슬롯)이고 강습·기타는 길이 제한이 없다.
     function reservationShape(r) {
-      return r.keys().hasOnly(['title', 'note', 'ownerId', 'ownerName', 'startAt', 'endAt', 'dayKey', 'slotIds', 'createdAt', 'updatedAt'])
+      return r.keys().hasOnly(['title', 'note', 'ownerId', 'ownerName', 'startAt', 'endAt', 'dayKey', 'slotIds', 'tag', 'createdAt', 'updatedAt'])
         && r.title is string && r.title.size() >= 1 && r.title.size() <= 40
         && (r.note == null || (r.note is string && r.note.size() <= 200))
         && r.ownerId is string
         && r.ownerName is string && r.ownerName.size() >= 1 && r.ownerName.size() <= 60
         && r.startAt is timestamp && r.endAt is timestamp
         && r.dayKey is string && r.dayKey.size() == 10
-        && r.slotIds is list && r.slotIds.size() >= 1 && r.slotIds.size() <= 8
+        && r.slotIds is list && r.slotIds.size() >= 1 && r.slotIds.size() <= 30
         && r.startAt.toMillis() % 1800000 == 0
         && r.endAt.toMillis() - r.startAt.toMillis() == r.slotIds.size() * 1800000
-        && r.endAt.toMillis() - r.startAt.toMillis() <= 14400000;
+        && validTag(r)
+        && (!('tag' in r) || r.tag != 'jam' || r.slotIds.size() <= 2);
     }
 
     // 슬롯 삭제는 대응 예약이 배치 이후 이 슬롯을 더 이상 소유하지 않을 때만 허용한다.
@@ -78,9 +115,30 @@ service cloud.firestore {
         && slotReleased(database, slotId, resource.data.reservationId);
     }
 
+    match /admins/{uid} {
+      allow read: if verifiedGoogleUser() && isOwner(uid);
+      allow write: if false;
+    }
+
     match /events/{eventId} {
       allow read: if verifiedGoogleUser();
-      allow write: if false;
+
+      // 모든 회원이 본인 명의로 일정을 만든다. 수정·삭제는 작성자 본인 또는 관리자.
+      allow create: if verifiedGoogleUser()
+        && eventShape(request.resource.data)
+        && isOwner(request.resource.data.createdBy)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      allow update: if verifiedGoogleUser()
+        && (isOwner(resource.data.createdBy) || isAdmin())
+        && eventShape(request.resource.data)
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if verifiedGoogleUser()
+        && (isOwner(resource.data.createdBy) || isAdmin());
     }
 
     match /settings/{settingId} {

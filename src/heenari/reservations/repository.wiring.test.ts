@@ -118,9 +118,10 @@ describe('rescheduleReservation 배선', () => {
     await rescheduleReservation({
       reservationId: 'res-1',
       viewerId: 'me',
-      draft: { title: '합주', note: null, slotIds: ['2026-09-22_18-30', '2026-09-22_19-00'] },
+      draft: { title: '합주', note: null, tag: 'jam', slotIds: ['2026-09-22_18-30', '2026-09-22_19-00'] },
       now,
     });
+    expect(h.store.get('res-1')).toMatchObject({ tag: 'jam' });
     expect(h.store.has('2026-09-22_18-00')).toBe(false);
     expect(h.store.get('2026-09-22_19-00')).toMatchObject({ reservationId: 'res-1' });
     expect(h.store.get('res-1')).toMatchObject({ slotIds: ['2026-09-22_18-30', '2026-09-22_19-00'] });

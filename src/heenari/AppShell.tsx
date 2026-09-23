@@ -1,10 +1,9 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { CalendarDays, Clock3, Home, UserRound } from 'lucide-react';
+import { CalendarDays, Home, UserRound } from 'lucide-react';
 import { useHeenariAuth } from './auth/authState';
 
 const navigation = [
   { to: '/', label: '홈', icon: Home, end: true },
-  { to: '/reserve', label: '예약', icon: Clock3, end: false },
   { to: '/schedule', label: '일정', icon: CalendarDays, end: false },
   { to: '/me', label: '내 정보', icon: UserRound, end: false },
 ];
