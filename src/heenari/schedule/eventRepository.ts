@@ -76,12 +76,13 @@ export async function fetchEventsBetween(from: Date, to: Date): Promise<ClubEven
   return snapshot.docs.map((docSnapshot) => mapEventSnapshot(docSnapshot)).filter((event) => eventOverlaps(event, from, to));
 }
 
-// 홈의 다음 일정 후보. 진행 중인 여러 날 일정까지 포함하도록 최대 길이만큼 앞당긴다.
-export async function fetchUpcomingEventCandidates(now: Date = new Date()): Promise<ClubEventView[]> {
+// 홈의 다음 합주 후보(합주 태그 일정). 진행 중인 여러 날 일정까지 포함하도록 최대 길이만큼 앞당긴다.
+export async function fetchUpcomingJamEvents(now: Date = new Date()): Promise<ClubEventView[]> {
   const { fs, db } = await loadFirestore();
   const snapshot = await fs.getDocs(
     fs.query(
       fs.collection(db, EVENTS),
+      fs.where('tag', '==', 'jam'),
       fs.where('startAt', '>=', fs.Timestamp.fromDate(new Date(now.getTime() - MAX_EVENT_DURATION_MS))),
       fs.orderBy('startAt', 'asc'),
       fs.limit(UPCOMING_LIMIT),

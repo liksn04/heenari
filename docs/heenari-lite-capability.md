@@ -4,7 +4,7 @@
 작성일: 2026-09-22
 대상: 40명 미만의 단일 동아리 `희나리`
 
-현재 활성 구현 게이트: `docs/gates/HEENARI-FB-03-SCHEDULE.md`
+현재 활성 구현 게이트: `docs/gates/HEENARI-FB-05-HOME-JAM-NOTICES.md`
 
 ## 1. Capability
 
@@ -42,6 +42,7 @@
 - 회원이 할 수 있는 모든 작업을 수행한다.
 - 모든 예약을 수정하거나 취소한다.
 - 누가 만들었든 모든 일정을 수정, 삭제한다(타인 예약 정리는 아직 미구현).
+- 동아리 공지를 쓰고 고치고 지운다. 회원은 읽기만 한다(2026-09-24, FB-05).
 - 관리자 권한은 Firebase Console에서만 관리하는 `admins/{uid}` 문서로 부여한다
   (2026-09-23 확정, `docs/gates/HEENARI-FB-03-SCHEDULE.md`).
 
@@ -114,7 +115,9 @@
 
 ### 일정 확인
 
-홈에서는 다음 일정과 내 다음 동아리방 시간을 각각 한 건씩 보여준다. 일정 화면은
+홈의 빨간 카드는 동아리 전체의 다음 합주(동아리방 합주 예약·합주 태그 일정 중 끝나지 않은
+가장 이른 것)를 보여주고, 그 아래에 동아리 공지 최신 3개와 내 다음 동아리방 시간을 둔다
+(2026-09-24, FB-05). 일정 화면은
 선택한 날짜의 예약과 일정을 구분 없이 시간순 한 목록으로 보여준다(필터 없음).
 
 ## 6. 화면 구조
@@ -127,10 +130,13 @@
 
 /
   오늘 날짜와 회원 이름
-  다음 동아리 일정
-  다음 공간 예약
-  빠른 예약 버튼(→ /schedule)
+  다음 합주(동아리 전체, 빨간 카드 → /schedule?day=)
+  동아리 공지 최신 3개(→ /notices, 운영진은 공지 쓰기)
+  내 다음 동아리방 시간(→ /schedule)
   오늘 일정 요약
+
+/notices
+  동아리 공지 전체(최신순) → 누르면 본문, 운영진은 수정·삭제
 
 /schedule  (예약·일정 통합 화면, /reserve는 여기로 리디렉트)
   월간 날짜 선택기
@@ -278,6 +284,11 @@ interface ClubSettings {
 }
 ```
 
+### `notices/{noticeId}`
+
+운영진만 쓰는 동아리 공지. `title`(1..60), `body`(1..1000), `authorId`·`authorName`·`createdAt`
+(불변), `updatedAt`. 자세한 계약은 `docs/gates/HEENARI-FB-05-HOME-JAM-NOTICES.md`.
+
 ### `admins/{uid}`
 
 Firebase Console에서만 만들고 지운다. 문서 존재 자체가 관리자 판정이며 필드는
@@ -309,6 +320,7 @@ Firebase Console에서만 만들고 지운다. 문서 존재 자체가 관리자
 - 슬롯 문서는 수정할 수 없고 생성 또는 삭제만 가능하다.
 - 일정(`events`)은 모든 회원이 본인 명의로 만들고, 수정·삭제는 작성자 또는
   관리자(`admins/{uid}` 존재)만 한다.
+- 공지(`notices`)는 회원이 읽고, 쓰기·수정·삭제는 관리자만 한다. 작성자와 작성 시각은 바꿀 수 없다.
 - 기본 규칙은 모든 접근 거부다.
 
 Rules만으로 표현하기 어려운 예약 불변조건은 트랜잭션 구현과 Emulator 기반
@@ -319,6 +331,8 @@ Rules만으로 표현하기 어려운 예약 불변조건은 트랜잭션 구현
 - 날짜별 예약: `dayKey == 선택일`, `startAt asc`
 - 내 예정 예약: `ownerId == uid`, `startAt >= now`, `startAt asc`
 - 기간별 동아리 일정: `startAt >= 시작`, `startAt < 종료`, `startAt asc`
+- 다음 합주: 예약·일정 각각 `tag == 'jam'`, `startAt >= now − 앞당김`, `startAt asc`, `limit`
+- 동아리 공지: `createdAt desc`, `limit 3`(홈) / `limit 50`(전체)
 - 관리자 예약 조회도 날짜 범위 쿼리를 기본으로 한다.
 
 Firestore가 요청하는 복합 인덱스는 `firestore.indexes.json`에 저장해 재현

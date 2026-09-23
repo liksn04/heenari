@@ -29,6 +29,7 @@ vi.mock('firebase/firestore', () => ({
   },
   where: (field: string, op: string, value: unknown) => ({ __where: [field, op, value] }),
   orderBy: (field: string, dir: string) => ({ __orderBy: [field, dir] }),
+  limit: (count: number) => ({ __limit: count }),
   query: (coll: unknown, ...clauses: unknown[]) => ({ __query: { coll, clauses } }),
   getDocs: vi.fn(async (q: { __query: { clauses: { __where?: unknown[] }[] } }) => {
     const byParticipant = q.__query.clauses.some((clause) => clause.__where?.[1] === 'array-contains');
@@ -57,6 +58,7 @@ import {
   createReservation,
   fetchDayReservations,
   fetchMyUpcomingReservations,
+  fetchUpcomingJamReservations,
   rescheduleReservation,
   ReservationValidationError,
   SlotConflictError,
@@ -185,5 +187,25 @@ describe('합주 초대 배선', () => {
     h.participantDocs.current = [view('invited-early', '2026-09-23T09:00:00.000Z', 'other'), view('mine-late', '2026-09-23T12:00:00.000Z', 'me')];
     const views = await fetchMyUpcomingReservations('me', now);
     expect(views.map((item) => item.id)).toEqual(['invited-early', 'mine-late']);
+  });
+});
+
+describe('fetchUpcomingJamReservations 배선', () => {
+  it('동아리 전체의 합주 예약을 진행 중(최대 1시간)까지 포함해 제한 개수만 조회한다', async () => {
+    const { getDocs } = await import('firebase/firestore');
+    vi.mocked(getDocs).mockClear();
+    h.docsResult.current = [
+      { id: 'jam-1', data: () => ({ title: '합주', ownerId: 'other', ownerName: '박', dayKey: '2026-09-22', slotIds: ['2026-09-22_09-00'], tag: 'jam', startAt: { toDate: () => new Date('2026-09-22T00:00:00.000Z') }, endAt: { toDate: () => new Date('2026-09-22T00:30:00.000Z') } }) },
+    ];
+    const views = await fetchUpcomingJamReservations(now);
+    expect(views.map((view) => [view.id, view.tag])).toEqual([['jam-1', 'jam']]);
+    const query = vi.mocked(getDocs).mock.calls[0][0] as unknown as { __query: { coll: unknown; clauses: unknown[] } };
+    expect(query.__query.coll).toEqual({ __collection: 'reservations' });
+    expect(query.__query.clauses).toEqual([
+      { __where: ['tag', '==', 'jam'] },
+      { __where: ['startAt', '>=', { __ts: '2026-09-21T23:00:00.000Z' }] },
+      { __orderBy: ['startAt', 'asc'] },
+      { __limit: 5 },
+    ]);
   });
 });

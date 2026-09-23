@@ -3,7 +3,7 @@ import { AuthProvider } from './heenari/auth/AuthContext';
 import { useHeenariAuth } from './heenari/auth/authState';
 import AppShell from './heenari/AppShell';
 import Login from './heenari/Login';
-import { HomePage, MyPage, SchedulePage } from './heenari/pages';
+import { HomePage, MyPage, NoticesPage, SchedulePage } from './heenari/pages';
 
 function AppRoutes() {
   const { status } = useHeenariAuth();
@@ -33,6 +33,7 @@ function AppRoutes() {
         <Route index element={<HomePage />} />
         <Route path="reserve" element={<Navigate to="/schedule" replace />} />
         <Route path="schedule" element={<SchedulePage />} />
+        <Route path="notices" element={<NoticesPage />} />
         <Route path="me" element={<MyPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

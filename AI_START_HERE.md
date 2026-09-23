@@ -8,7 +8,7 @@
 1. `AI_START_HERE.md`
 2. `AGENTS.md`
 3. `docs/heenari-lite-capability.md`
-4. `docs/gates/HEENARI-FB-04-PWA-JAM-INVITES.md`
+4. `docs/gates/HEENARI-FB-05-HOME-JAM-NOTICES.md`
 5. 관련 소스와 테스트
 6. `docs/*-closeout.md`는 완료 증거가 필요할 때만 확인
 
@@ -41,8 +41,8 @@
 - Firebase project: `heenari-9f2a6`
 - Firestore: `(default)`, Standard edition, `asia-northeast3`, free tier
 - Hosting live URL: `https://heenari-9f2a6.web.app`
-- 현재 배포물은 모바일 최적화 웹앱이다. FB-04(PWA·합주 초대·알림)는 코드 완료, 미배포.
-  알림 Worker(`notifier/`)와 웹 푸시 키·서비스 계정은 아직 설정되지 않았다(`notifier/README.md`).
+- 현재 배포물은 설치형 PWA다. FB-04(PWA·합주 초대·알림)는 배포됐고 알림 Worker(`notifier/`)도
+  운영 중이다(`docs/heenari-fb-04-closeout.md`). FB-05(홈 다음 합주·동아리 공지)는 코드 완료, 미배포.
 - Google Auth: 활성화 및 실제 로그인·예약 생성까지 프로덕션에서 확인 완료
 - Authorized domains: `localhost`, `heenari-9f2a6.web.app`,
   `heenari-9f2a6.firebaseapp.com`
@@ -123,12 +123,12 @@ tests/firestore.rules.test.ts     Emulator Rules 테스트
 
 ## 7. 활성 게이트
 
-활성 게이트는 `HEENARI-FB-04 PWA·합주 초대·알림` 하나뿐이다.
-FB-02(예약 엔진)와 FB-03(예약·일정 통합, 태그)은 완료·배포됐다.
+활성 게이트는 `HEENARI-FB-05 홈 다음 합주·동아리 공지` 하나뿐이다.
+FB-02(예약 엔진), FB-03(예약·일정 통합, 태그), FB-04(PWA·합주 초대·알림)는 완료·배포됐다.
 
 구현 전에 반드시 읽을 문서:
 
-- `docs/gates/HEENARI-FB-04-PWA-JAM-INVITES.md`
+- `docs/gates/HEENARI-FB-05-HOME-JAM-NOTICES.md`
 
 관리자 판정은 Firebase Console에서만 관리하는 `admins/{uid}` 문서로 한다. 알림 발송은
 Cloudflare Worker(`notifier/`)가 맡고, 서비스 계정 키는 Worker 비밀값으로만 둔다.

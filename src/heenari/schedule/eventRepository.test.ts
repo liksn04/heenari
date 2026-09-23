@@ -43,7 +43,7 @@ vi.mock('firebase/firestore', () => ({
     await cb(tx);
     h.calls.push({ op: 'transaction', args: writes });
   },
-  where: (field: string, op: string, value: { __iso: string }) => ({ __where: [field, op, value.__iso] }),
+  where: (field: string, op: string, value: string | { __iso: string }) => ({ __where: [field, op, typeof value === 'string' ? value : value.__iso] }),
   orderBy: (field: string, dir: string) => ({ __orderBy: [field, dir] }),
   limit: (count: number) => ({ __limit: count }),
   query: (coll: unknown, ...clauses: unknown[]) => ({ coll, clauses }),
@@ -71,7 +71,7 @@ import {
   createEvent,
   deleteEvent,
   fetchEventsBetween,
-  fetchUpcomingEventCandidates,
+  fetchUpcomingJamEvents,
   mapEventSnapshot,
   updateEvent,
 } from './eventRepository';
@@ -135,13 +135,14 @@ describe('fetchEventsBetween', () => {
   });
 });
 
-describe('fetchUpcomingEventCandidates', () => {
-  it('진행 중 일정을 포함하도록 앞당겨 제한 개수만 조회한다', async () => {
-    h.docs.current = [snap('e1', { title: '모임', startAt: kstInstant('2026-10-02', '19:00'), allDay: false, createdBy: 'a' })];
-    const events = await fetchUpcomingEventCandidates(kstInstant('2026-10-02', '12:00'));
+describe('fetchUpcomingJamEvents', () => {
+  it('진행 중 합주 일정을 포함하도록 앞당겨 제한 개수만 조회한다', async () => {
+    h.docs.current = [snap('e1', { title: '합주', startAt: kstInstant('2026-10-02', '19:00'), allDay: false, tag: 'jam', createdBy: 'a' })];
+    const events = await fetchUpcomingJamEvents(kstInstant('2026-10-02', '12:00'));
     expect(events).toHaveLength(1);
     const query = h.calls[0].args[0] as { clauses: unknown[] };
     expect(query.clauses).toEqual([
+      { __where: ['tag', '==', 'jam'] },
       { __where: ['startAt', '>=', '2026-09-29T03:00:00.000Z'] },
       { __orderBy: ['startAt', 'asc'] },
       { __limit: 20 },
