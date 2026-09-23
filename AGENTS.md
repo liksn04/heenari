@@ -14,7 +14,7 @@
 - `firestore.rules`: 데이터 접근 권한의 최종 보안 경계
 - `tests/firestore.rules.test.ts`: Emulator 기반 Rules 검증
 - `docs/heenari-lite-capability.md`: 제품·기술 source of truth
-- `docs/gates/HEENARI-FB-02-RESERVATION.md`: 현재 활성 구현 게이트
+- `docs/gates/HEENARI-FB-03-SCHEDULE.md`: 현재 활성 구현 게이트
 
 ## Rules
 
@@ -41,6 +41,6 @@ Rules 변경 시 Java Runtime이 있는 환경에서 `npm run test:rules`도 실
 
 ## Active Gate
 
-현재 활성 게이트는 `HEENARI-FB-02 30분 예약 엔진` 하나다. 일정 CRUD나 관리자
-권한 구현을 섞지 않는다. live 배포와 commit/push는 별도 요청 없이는 수행하지
-않는다.
+현재 활성 게이트는 `HEENARI-FB-03 일정과 통합 홈` 하나다. 관리자 판정은
+Console 전용 `admins/{uid}` 문서로만 하며, 관리자의 타인 예약 정리나 PWA 기능을
+섞지 않는다. live 배포와 commit/push는 별도 요청 없이는 수행하지 않는다.

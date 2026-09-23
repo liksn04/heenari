@@ -11,6 +11,7 @@ import {
 } from 'firebase/auth';
 import { resolveGoogleMember, type MemberProfile } from './access';
 import { getFirebaseServices, hasFirebaseConfig } from '../lib/firebase';
+import { fetchIsAdmin } from '../admin/adminAccess';
 import { AuthContext, type AuthContextValue, type AuthStatus } from './authState';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -42,6 +43,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (access.status === 'allowed') {
         setMember(access.member);
         setStatus('allowed');
+        // 역할 표시는 진입을 막지 않고 뒤따라 반영한다. 실제 권한 경계는 Rules다.
+        fetchIsAdmin(nextUser.uid)
+          .then((isAdmin) => {
+            if (!isAdmin || services.auth.currentUser?.uid !== nextUser.uid) return;
+            setMember((current) => (current ? { ...current, role: 'admin' } : current));
+          })
+          .catch((error: unknown) => console.warn('관리자 여부를 확인하지 못했습니다.', error));
         return;
       }
 

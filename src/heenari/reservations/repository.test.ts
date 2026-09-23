@@ -75,6 +75,18 @@ describe('assertValidDraft', () => {
       .toThrowError(/not-contiguous/);
   });
 
+  it('합주 태그는 1시간(2슬롯)까지만, 강습·기타는 길이 제한 없이 통과한다', () => {
+    const three = ['2026-09-22_18-00', '2026-09-22_18-30', '2026-09-22_19-00'];
+    expect(() => assertValidDraft({ title: 'x', note: null, tag: 'jam', slotIds: three.slice(0, 2) }, now)).not.toThrow();
+    expect(() => assertValidDraft({ title: 'x', note: null, tag: 'jam', slotIds: three }, now)).toThrowError(/jam-too-long/);
+    expect(() => assertValidDraft({ title: 'x', note: null, tag: 'lesson', slotIds: three }, now)).not.toThrow();
+    const tenHours = Array.from({ length: 20 }, (_, i) => {
+      const minute = 10 * 60 + i * 30;
+      return `2026-09-22_${String(Math.floor(minute / 60)).padStart(2, '0')}-${String(minute % 60).padStart(2, '0')}`;
+    });
+    expect(() => assertValidDraft({ title: 'x', note: null, tag: 'etc', slotIds: tenHours }, now)).not.toThrow();
+  });
+
   it('이미 시작 시각이 지난 예약을 거부한다', () => {
     const later = new Date('2026-09-22T12:00:00.000Z'); // 21:00 KST
     expect(() => assertValidDraft({ title: 'x', note: null, slotIds: ['2026-09-22_18-00'] }, later))
@@ -105,6 +117,20 @@ describe('document builders', () => {
     expect(data.slotIds).toEqual(['2026-09-22_18-00', '2026-09-22_18-30']);
     expect(data.createdAt).toBe('__server');
     expect(data.startAt).toEqual({ __ts: '2026-09-22T09:00:00.000Z' });
+    expect(data.tag).toBe('etc'); // 태그를 주지 않으면 기타로 저장
+  });
+
+  it('선택한 태그를 예약 문서에 담는다', () => {
+    const data = buildReservationData(
+      {
+        draft: { title: '합주', note: null, tag: 'jam', slotIds: ['2026-09-22_18-00'] },
+        ownerId: 'me',
+        ownerName: '김희나',
+        window: { startAt: new Date('2026-09-22T09:00:00.000Z'), endAt: new Date('2026-09-22T09:30:00.000Z'), dayKey: '2026-09-22' },
+      },
+      time,
+    );
+    expect(data.tag).toBe('jam');
   });
 
   it('슬롯 문서를 계약대로 만든다', () => {
@@ -291,6 +317,13 @@ describe('mapReservationSnapshot', () => {
       dayKey: '2026-09-22',
     });
     expect(view.startAt.toISOString()).toBe('2026-09-22T09:00:00.000Z');
+    expect(view.tag).toBeNull(); // 태그가 없던 기존 예약
+  });
+
+  it('알려진 태그만 읽고 모르는 값은 null로 둔다', () => {
+    const base = { title: '합주', note: null, ownerId: 'me', ownerName: '김희나', dayKey: '2026-09-22', slotIds: [], startAt: new Date(), endAt: new Date() };
+    expect(mapReservationSnapshot({ id: 'a', data: () => ({ ...base, tag: 'lesson' }) }).tag).toBe('lesson');
+    expect(mapReservationSnapshot({ id: 'b', data: () => ({ ...base, tag: 'party' }) }).tag).toBeNull();
   });
 });
 

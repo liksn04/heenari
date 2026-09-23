@@ -33,7 +33,7 @@ body {
   overscroll-behavior-y: none;
 }
 
-button, input { font: inherit; }
+button, input, select { font: inherit; }
 
 button, a, input {
   touch-action: manipulation;
@@ -171,7 +171,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .profile-card div > p:last-child { margin: 0; color: var(--muted); font-size: 0.82rem; }
 .secondary-button { display: flex; align-items: center; justify-content: center; gap: 0.55rem; color: var(--forest); border: 1px solid var(--line); background: #fff; }
 
-.bottom-nav { position: fixed; z-index: 20; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(4, 1fr); width: min(100%, 48rem); min-height: 5.25rem; margin: 0 auto; padding: 0.55rem max(0.7rem, env(safe-area-inset-right)) max(0.55rem, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: rgba(255, 253, 247, 0.94); backdrop-filter: blur(20px); }
+.bottom-nav { position: fixed; z-index: 20; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(3, 1fr); width: min(100%, 48rem); min-height: 5.25rem; margin: 0 auto; padding: 0.55rem max(0.7rem, env(safe-area-inset-right)) max(0.55rem, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: rgba(255, 253, 247, 0.94); backdrop-filter: blur(20px); }
 .bottom-nav a { display: flex; min-height: 3.75rem; flex-direction: column; align-items: center; justify-content: center; gap: 0.3rem; border-radius: 15px; color: #8a837a; text-decoration: none; font-size: 0.68rem; font-weight: 750; }
 .bottom-nav a.active { color: #006f89; background: rgba(0, 175, 212, 0.13); }
 
@@ -209,17 +209,16 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 }
 
 /* --- reservation engine (HEENARI-FB-02) --- */
-.reserve-page { gap: 1.4rem; }
 
 .field-block { display: grid; gap: 0.5rem; }
 .field-block > span { color: var(--muted); font-size: 0.78rem; font-weight: 750; letter-spacing: 0.02em; }
-.field-block input, .field-block textarea {
+.field-block input, .field-block textarea, .field-block select {
   width: 100%; min-height: 3.35rem; padding: 0.85rem 1rem;
   border: 1px solid var(--line); border-radius: 14px;
   color: var(--ink); background: var(--paper); font-size: 16px;
 }
 .field-block textarea { min-height: 4.6rem; resize: vertical; line-height: 1.5; }
-.field-block input:focus, .field-block textarea:focus { border-color: var(--forest); }
+.field-block input:focus, .field-block textarea:focus, .field-block select:focus { border-color: var(--forest); }
 
 .slot-grid { display: grid; gap: 0.55rem; }
 .slot-cell {
@@ -288,7 +287,6 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .calendar-day[data-today="true"] { border-color: var(--cyan); color: #006f89; }
 .calendar-day[data-selected="true"] { color: #fff; background: var(--forest); border-color: var(--forest); }
 
-.reserve-open:disabled { cursor: not-allowed; }
 
 .modal-overlay {
   position: fixed; inset: 0; z-index: 40;
@@ -310,3 +308,89 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .modal-sheet { animation: none; }
 }
+
+/* --- schedule + integrated home (HEENARI-FB-03) --- */
+.schedule-page { gap: 1.6rem; }
+.calendar-day { position: relative; }
+.calendar-mark { position: absolute; bottom: 6px; left: 50%; width: 6px; height: 6px; border-radius: 50%; background: var(--orange); transform: translateX(-50%); }
+.calendar-day[data-selected="true"] .calendar-mark { background: #fff1b7; }
+
+.filter-chip { min-height: 44px; border: 0; border-radius: 12px; color: var(--muted); background: transparent; font-size: 0.86rem; font-weight: 800; cursor: pointer; }
+.filter-chip[aria-pressed="true"] { color: #fff; background: var(--forest); }
+
+.timeline-list, .today-list { display: grid; gap: 0.6rem; margin: 0; padding: 0; list-style: none; }
+.timeline-item {
+  position: relative; display: grid; gap: 0.3rem; width: 100%; min-height: 44px; padding: 0.95rem 1.1rem;
+  border: 1px solid var(--line); border-left: 5px solid var(--orange); border-radius: 16px;
+  color: var(--ink); background: var(--paper); font: inherit; text-align: left;
+}
+button.timeline-item { padding-right: 2.6rem; cursor: pointer; }
+.timeline-edit { position: absolute; top: 50%; right: 1rem; color: var(--muted); transform: translateY(-50%); }
+.timeline-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.6rem; }
+.timeline-kind { padding: 0.18rem 0.5rem; border-radius: 999px; color: #006f89; background: rgba(0, 175, 212, 0.13); font-size: 0.7rem; font-weight: 800; white-space: nowrap; }
+.timeline-time { color: var(--muted); font-size: 0.8rem; font-weight: 750; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.timeline-title { overflow-wrap: anywhere; font-size: 1rem; letter-spacing: -0.02em; }
+.timeline-detail { display: flex; align-items: flex-start; gap: 0.3rem; min-width: 0; color: var(--muted); font-size: 0.8rem; overflow-wrap: anywhere; }
+
+.next-event-card > div { min-width: 0; }
+.next-event-card h2 { overflow-wrap: anywhere; }
+.next-event-card > div > p { margin: 0 0 0.3rem; color: rgba(247,242,232,0.78); font-size: 0.86rem; line-height: 1.55; }
+.next-event-card .next-event-when { color: #fff9ed; font-weight: 750; font-variant-numeric: tabular-nums; }
+
+.today-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.7rem; min-height: 44px; padding: 0.75rem 1rem; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+.today-item strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.today-more { color: var(--muted); font-size: 0.8rem; }
+
+.check-row { display: flex; align-items: center; gap: 0.7rem; min-height: 44px; font-weight: 750; cursor: pointer; }
+.check-row input { width: 1.25rem; height: 1.25rem; margin: 0; accent-color: var(--forest); }
+.field-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem; }
+.field-pair .field-block input { min-width: 0; }
+.cta-actions { display: flex; gap: 0.6rem; }
+.cta-actions .primary-button { flex: 1; margin-top: 0; }
+.cta-actions .secondary-button { flex: 0 0 auto; }
+.confirm-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+.confirm-row p { grid-column: 1 / -1; margin: 0; color: var(--forest-deep); font-size: 0.86rem; font-weight: 750; }
+.danger-button { min-height: 3.55rem; border: 0; border-radius: 16px; color: #fff; background: var(--forest-deep); font-weight: 800; cursor: pointer; }
+.danger-button:disabled, .secondary-button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+@media (max-width: 360px) {
+  .field-pair { grid-template-columns: 1fr; }
+  .today-item { grid-template-columns: minmax(0, 1fr) auto; }
+  .today-item .timeline-time { grid-column: 1 / -1; }
+}
+
+/* 달력 폭 보정: 44px 셀 7개 + 여백이 360·390px 본문 폭을 넘어 가로 스크롤이 생기던 문제
+   (FB-02 예약 달력 포함). 360–430px에서는 셀 44px 이상을 유지하고, 그보다 좁으면 셀이 줄어든다. */
+.calendar-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.calendar-day { min-width: 0; }
+@media (max-width: 430px) {
+  .calendar { padding: 0.9rem 0.6rem; }
+  .calendar-grid, .calendar-weekdays { gap: 2px; }
+}
+@media (max-width: 374px) {
+  .calendar { margin-inline: -0.5rem; padding-inline: 0.4rem; }
+}
+.timeline-detail svg { flex: 0 0 auto; margin-top: 0.15em; }
+@media (max-width: 359px) {
+  .calendar-day { aspect-ratio: auto; }
+}
+.no-wrap { white-space: nowrap; }
+
+/* 예약·일정 통합: 하나의 일정 추가 버튼과 장소 선택 */
+.board-add { display: flex; align-items: center; justify-content: center; gap: 0.45rem; margin-top: 0; }
+.place-toggle { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.4rem; padding: 0.3rem; border: 1px solid var(--line); border-radius: 16px; background: #faf6ec; }
+.field-hint { display: flex; align-items: flex-start; gap: 0.35rem; margin: 0; color: var(--muted); font-size: 0.78rem; line-height: 1.5; }
+.field-hint svg { flex: 0 0 auto; margin-top: 0.2em; color: var(--forest); }
+.today-place { max-width: 7rem; overflow: hidden; color: var(--muted); font-size: 0.75rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 동아리방 30분 시간 선택 */
+.field-block select {
+  appearance: none; -webkit-appearance: none; padding-right: 2.4rem; font-variant-numeric: tabular-nums; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 1.15rem) 50%, calc(100% - 0.8rem) 50%;
+  background-size: 0.35rem 0.35rem; background-repeat: no-repeat;
+}
+
+/* 태그(합주·강습·기타) */
+.tag-toggle { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; padding: 0.3rem; border: 1px solid var(--line); border-radius: 16px; background: #faf6ec; }
+.timeline-tag { padding: 0.18rem 0.5rem; border: 1px solid var(--line); border-radius: 999px; color: var(--forest-deep); background: var(--forest-soft); font-size: 0.7rem; font-weight: 800; white-space: nowrap; }

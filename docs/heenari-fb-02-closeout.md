@@ -61,6 +61,8 @@ CI (GitHub Actions `verify`, Node 22 + Java 17 — 전부 통과, run 3570712491
 
 모바일 QA (Vite 실제 렌더러, 360×800 / 390×844 / 430×932):
 - 가로 스크롤 없음(scrollWidth == innerWidth, app-frame 정확히 폭 일치)
+  - **정정(2026-09-23, FB-03):** 달력이 360·390px에서 실제로는 가로 스크롤을 만들었다
+    (달력 372px). FB-03에서 수정했다. `docs/heenari-fb-03-closeout.md` 참조.
 - 달력 날짜 셀 44–48px, 슬롯 52px, CTA 57px, 입력 16px(iOS 확대 방지)
 - 하단 고정 CTA와 앱 하단 내비 미겹침(360px에서 33px 간격)
 - 달력: 과거일 비활성, 오늘 표시, 선택 강조 / 모달: 바텀시트, 슬롯 스크롤 + 스티키 확정

@@ -8,7 +8,7 @@
 1. `AI_START_HERE.md`
 2. `AGENTS.md`
 3. `docs/heenari-lite-capability.md`
-4. `docs/gates/HEENARI-FB-02-RESERVATION.md`
+4. `docs/gates/HEENARI-FB-03-SCHEDULE.md`
 5. 관련 소스와 테스트
 6. `docs/*-closeout.md`는 완료 증거가 필요할 때만 확인
 
@@ -58,10 +58,10 @@
 - 위 두 값은 저장소에 없다. authDomain은 `.env.local`과 GitHub Actions 시크릿에,
   리디렉션 URI는 Google Cloud 콘솔에만 있다. 되돌리면 로그인이 조용히 깨지므로
   확인 없이 `firebaseapp.com`으로 바꾸지 않는다.
-- 원격 Firestore Rules: 현재 저장소의 `firestore.rules`와 일치(재배포 시
-  `already up to date`로 확인)
+- 원격 Firestore Rules: FB-02 시점 규칙. FB-03의 `admins`·`events` 규칙은 아직
+  배포되지 않았다(로컬 에뮬레이터 29개 통과, 배포는 사용자 요청 시).
 - Firestore 쓰기: 예약과 슬롯은 본인 소유 문서에 한해 허용(HEENARI-FB-02 Rules 배포 완료).
-  `events`와 `settings` 쓰기는 계속 거부
+  `settings` 쓰기는 계속 거부. (로컬, 미배포) `events`는 회원 본인 명의 생성, 작성자·관리자 수정·삭제
 - 배포된 복합 인덱스: `reservations(dayKey, startAt)`, `reservations(ownerId, startAt)`
 - CI/CD: GitHub Actions. `main` 병합 시 Hosting 자동 배포, PR은 미리보기 채널 배포.
   Firestore Rules와 인덱스는 자동 배포에 **포함되지 않으므로**
@@ -96,7 +96,8 @@ src/App.tsx                       라우팅과 인증 진입
 src/heenari/auth/                 Google Auth와 세션
 src/heenari/lib/firebase.ts       Firebase 초기화
 src/heenari/AppShell.tsx          모바일 앱 셸과 하단 내비게이션
-src/heenari/pages.tsx             현재 홈·예약·일정·내 정보 화면
+src/heenari/pages.tsx             홈·일정(예약 통합)·내 정보 화면
+src/heenari/schedule/             일정 화면, 통합 일정 모달(EntrySheet), 저장 방식 판단(entry.ts)
 src/heenari.css                   디자인 토큰과 반응형 스타일
 firestore.rules                   원격 데이터 보안 경계
 firestore.indexes.json            재현 가능한 인덱스 정의
@@ -121,13 +122,16 @@ tests/firestore.rules.test.ts     Emulator Rules 테스트
 
 ## 7. 활성 게이트
 
-활성 게이트는 `HEENARI-FB-02 30분 예약 엔진` 하나뿐이다.
+활성 게이트는 `HEENARI-FB-03 일정과 통합 홈` 하나뿐이다.
+`HEENARI-FB-02 30분 예약 엔진`은 완료됐다(`docs/heenari-fb-02-closeout.md`).
 
 구현 전에 반드시 읽을 문서:
 
-- `docs/gates/HEENARI-FB-02-RESERVATION.md`
+- `docs/gates/HEENARI-FB-03-SCHEDULE.md`
 
-일정 CRUD, 관리자 권한, PWA 설치 기능은 이 게이트에 섞지 않는다.
+관리자 판정은 Firebase Console에서만 관리하는 `admins/{uid}` 문서로 한다(2026-09-23
+확정). 관리자의 타인 예약 정리, 관리자 지정 UI, PWA 설치 기능은 이 게이트에 섞지
+않는다.
 
 ## 8. 기본 검증
 
@@ -146,8 +150,9 @@ Rules 변경 시:
 npm run test:rules
 ```
 
-현재 로컬에는 Java Runtime이 없을 수 있다. 이 경우 Rules 테스트를 생략한 채
-완료했다고 주장하지 말고, Firebase MCP validator 결과와 미실행 사유를 기록한다.
+로컬 Java는 Homebrew `openjdk@21`(keg-only)로 설치돼 있다. 실행 시
+`PATH=/opt/homebrew/opt/openjdk@21/bin:$PATH npm run test:rules`. 이 경로가 없다면 Rules 테스트를
+생략한 채 완료했다고 주장하지 말고, Firebase MCP validator 결과와 미실행 사유를 기록한다.
 
 UI 변경은 최소 360×800, 390×844, 430×932에서 확인한다.
 

@@ -1,10 +1,15 @@
-import { CalendarDays, ChevronRight, Clock3, LogOut, Sparkles } from 'lucide-react';
+import { CalendarDays, ChevronRight, Clock3, LogOut, MapPin, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useHeenariAuth } from './auth/authState';
-import { ReservationScheduler } from './reservations/ReservationScheduler';
 import { ReservationList } from './reservations/ReservationList';
 import { useMyUpcomingReservations } from './reservations/useMyUpcomingReservations';
-import { timeLabelOf } from './reservations/slots';
+import { dayKeyOf, timeLabelOf } from './reservations/slots';
+import { ScheduleBoard } from './schedule/ScheduleBoard';
+import { formatEventRange, spansMultipleDays } from './schedule/eventPolicy';
+import { buildTimeline, dayLabel } from './schedule/timeline';
+import { useDayTimeline, useUpcomingEvent } from './schedule/useScheduleData';
+
+const TODAY_SUMMARY_LIMIT = 3;
 
 function useViewer() {
   const { user, member } = useHeenariAuth();
@@ -16,6 +21,11 @@ export function HomePage() {
   const viewer = useViewer();
   const { reservations } = useMyUpcomingReservations(viewer.uid);
   const nextReservation = reservations[0] ?? null;
+  const upcoming = useUpcomingEvent();
+  const nextEvent = upcoming.data;
+  const todayKey = dayKeyOf(new Date());
+  const todayTimeline = useDayTimeline(todayKey);
+  const todayItems = buildTimeline(todayKey, todayTimeline.data.reservations, todayTimeline.data.events);
   const today = new Intl.DateTimeFormat('ko-KR', {
     month: 'long',
     day: 'numeric',
@@ -30,11 +40,30 @@ export function HomePage() {
         <p>희나리의 다음 일정과 공간 예약을 확인해보세요.</p>
       </section>
 
-      <section className="next-event-card">
+      <section className="next-event-card" aria-label="다음 일정">
         <div>
-          <p className="card-kicker"><Sparkles size={15} /> 다음 동아리 일정</p>
-          <h2>첫 일정을 준비하고 있어요</h2>
-          <p>운영진이 일정을 등록하면 가장 먼저 이곳에 표시됩니다.</p>
+          <p className="card-kicker"><Sparkles size={15} /> 다음 일정</p>
+          {nextEvent ? (
+            <>
+              <h2>{nextEvent.title}</h2>
+              <p className="next-event-when">
+                {spansMultipleDays(nextEvent)
+                  ? formatEventRange(nextEvent)
+                  : `${dayLabel(dayKeyOf(nextEvent.startAt))} · ${formatEventRange(nextEvent)}`}
+              </p>
+              {nextEvent.location && <p><MapPin size={13} aria-hidden="true" /> {nextEvent.location}</p>}
+            </>
+          ) : upcoming.status === 'error' ? (
+            <>
+              <h2>일정을 불러오지 못했어요</h2>
+              <p>잠시 후 일정 화면에서 다시 확인해주세요.</p>
+            </>
+          ) : (
+            <>
+              <h2>{upcoming.status === 'loading' ? '다음 일정을 확인하고 있어요' : '예정된 동아리 일정이 없어요'}</h2>
+              <p>운영진이 일정을 등록하면 가장 먼저 이곳에 표시됩니다.</p>
+            </>
+          )}
         </div>
         <CalendarDays size={34} strokeWidth={1.4} aria-hidden="true" />
       </section>
@@ -42,10 +71,10 @@ export function HomePage() {
       <section className="section-block">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">SPACE</p>
-            <h2>다음 공간 예약</h2>
+            <p className="eyebrow">CLUB ROOM</p>
+            <h2>내 다음 동아리방 시간</h2>
           </div>
-          <Link className="round-button" to="/reserve" aria-label="예약 화면으로 이동"><ChevronRight /></Link>
+          <Link className="round-button" to="/schedule" aria-label="일정 화면에서 예약하기"><ChevronRight /></Link>
         </div>
         {nextReservation ? (
           <div className="next-reservation">
@@ -58,8 +87,45 @@ export function HomePage() {
           <div className="empty-state compact-empty">
             <Clock3 size={25} aria-hidden="true" />
             <div>
-              <strong>예정된 예약이 없습니다</strong>
-              <p>필요한 시간을 30분 단위로 예약할 수 있어요.</p>
+              <strong>잡아둔 동아리방 시간이 없어요</strong>
+              <p>일정에서 장소를 동아리방으로 두면 30분 단위로 잡아둘 수 있어요.</p>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="section-block">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">TODAY</p>
+            <h2>오늘 일정</h2>
+          </div>
+          <Link className="round-button" to="/schedule" aria-label="일정 화면으로 이동"><ChevronRight /></Link>
+        </div>
+        {todayTimeline.status === 'error' ? (
+          <p className="form-message" role="status" data-tone="error">
+            오늘 일정을 불러오지 못했어요.
+            <button type="button" className="link-button" onClick={() => void todayTimeline.refresh()}>다시 시도</button>
+          </p>
+        ) : todayItems.length > 0 ? (
+          <ul className="today-list" aria-label="오늘 일정 요약">
+            {todayItems.slice(0, TODAY_SUMMARY_LIMIT).map((item) => (
+              <li key={`${item.kind}-${item.id}`} className="today-item" data-kind={item.kind}>
+                <span className="timeline-time">{item.timeLabel}</span>
+                <strong>{item.title}</strong>
+                {item.place && <span className="today-place">{item.place}</span>}
+              </li>
+            ))}
+            {todayItems.length > TODAY_SUMMARY_LIMIT && (
+              <li className="today-more">외 {todayItems.length - TODAY_SUMMARY_LIMIT}건은 일정 화면에서 확인하세요.</li>
+            )}
+          </ul>
+        ) : (
+          <div className="empty-state compact-empty">
+            <CalendarDays size={25} aria-hidden="true" />
+            <div>
+              <strong>{todayTimeline.status === 'loading' ? '오늘 일정을 확인하고 있어요' : '오늘은 예정된 일정이 없어요'}</strong>
+              <p>예약과 동아리 일정이 생기면 이곳에 모아 보여드려요.</p>
             </div>
           </div>
         )}
@@ -68,26 +134,10 @@ export function HomePage() {
   );
 }
 
-export function ReservePage() {
-  const viewer = useViewer();
-  return <ReservationScheduler viewer={viewer} />;
-}
-
 export function SchedulePage() {
-  return (
-    <div className="page-stack">
-      <section className="page-title">
-        <p className="eyebrow">CLUB CALENDAR</p>
-        <h1>희나리 일정</h1>
-        <p>예약과 동아리 일정을 한 흐름으로 보여줄 화면입니다.</p>
-      </section>
-      <div className="empty-state">
-        <CalendarDays size={30} aria-hidden="true" />
-        <strong>아직 등록된 일정이 없어요</strong>
-        <p>일정 기능은 예약 엔진 다음 게이트에서 연결됩니다.</p>
-      </div>
-    </div>
-  );
+  const { member } = useHeenariAuth();
+  const viewer = useViewer();
+  return <ScheduleBoard viewer={{ ...viewer, isAdmin: member?.role === 'admin' }} />;
 }
 
 export function MyPage() {
@@ -107,8 +157,8 @@ export function MyPage() {
       <section className="section-block">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">MY RESERVATIONS</p>
-            <h2>내 예정 예약</h2>
+            <p className="eyebrow">MY CLUB ROOM</p>
+            <h2>내 동아리방 시간</h2>
           </div>
         </div>
         <ReservationList viewer={viewer} />
