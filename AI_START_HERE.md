@@ -43,11 +43,29 @@
 - Firestore: `(default)`, Standard edition, `asia-northeast3`, free tier
 - Hosting live URL: `https://heenari-9f2a6.web.app`
 - 현재 배포물은 모바일 최적화 웹앱이며, 설치형 PWA manifest와 service worker는 아직 구현되지 않음
-- Google Auth: 활성화 및 실제 로그인 확인 완료
+- Google Auth: 활성화 및 실제 로그인·예약 생성까지 프로덕션에서 확인 완료
 - Authorized domains: `localhost`, `heenari-9f2a6.web.app`,
   `heenari-9f2a6.firebaseapp.com`
-- 원격 Firestore Rules: 현재 저장소의 `firestore.rules`와 일치
-- Firestore 쓰기: 현재 전부 거부됨
+- **`VITE_FIREBASE_AUTH_DOMAIN`은 반드시 `heenari-9f2a6.web.app`이어야 한다.**
+  앱이 `web.app`에서 서빙되므로 authDomain이 `firebaseapp.com`이면 교차 출처가 되고,
+  브라우저의 서드파티 스토리지 차단 때문에 `signInWithRedirect` 결과를 읽지 못해
+  아무 에러 없이 로그인 화면으로 되돌아온다.
+- 위 authDomain과 짝으로, Google Cloud OAuth 2.0 클라이언트(`Web client (auto created
+  by Google Service)`)의 **승인된 리디렉션 URI**에
+  `https://heenari-9f2a6.web.app/__/auth/handler`가 등록돼 있어야 한다. 없으면 Google이
+  `400 redirect_uri_mismatch`로 차단한다.
+  콘솔: <https://console.cloud.google.com/apis/credentials?project=heenari-9f2a6>
+- 위 두 값은 저장소에 없다. authDomain은 `.env.local`과 GitHub Actions 시크릿에,
+  리디렉션 URI는 Google Cloud 콘솔에만 있다. 되돌리면 로그인이 조용히 깨지므로
+  확인 없이 `firebaseapp.com`으로 바꾸지 않는다.
+- 원격 Firestore Rules: 현재 저장소의 `firestore.rules`와 일치(재배포 시
+  `already up to date`로 확인)
+- Firestore 쓰기: 예약과 슬롯은 본인 소유 문서에 한해 허용(HEENARI-FB-02 Rules 배포 완료).
+  `events`와 `settings` 쓰기는 계속 거부
+- 배포된 복합 인덱스: `reservations(dayKey, startAt)`, `reservations(ownerId, startAt)`
+- CI/CD: GitHub Actions. `main` 병합 시 Hosting 자동 배포, PR은 미리보기 채널 배포.
+  Firestore Rules와 인덱스는 자동 배포에 **포함되지 않으므로**
+  `npx -y firebase-tools@latest deploy --only firestore`로 따로 배포한다.
 - Git origin: `https://github.com/liksn04/heenari.git`
 - 이전 원격: `legacy-roomin`
 
@@ -56,8 +74,10 @@
 
 ## 4. 중요한 Git 상태
 
-현재 작업 트리에는 이전 Roomin/Supabase 저장소를 희나리 전용 저장소로 바꾸는
-대규모 삭제와 새 파일이 아직 커밋되지 않은 상태로 함께 존재한다.
+이전 Roomin/Supabase 저장소를 희나리 전용 저장소로 바꾸는 대규모 삭제와 새 파일은
+이미 커밋됐고(`2a31e4e`), HEENARI-FB-02 예약 엔진도 `main`에 병합됐다(`e62d4e1`).
+"작업 트리에 미커밋 마이그레이션이 남아 있다"는 과거 가정은 더 이상 유효하지 않다.
+아래 금지 사항은 계속 유효하다.
 
 금지:
 
