@@ -2,7 +2,7 @@
 
 작성일: 2026-09-24
 게이트: `docs/gates/HEENARI-FB-05-HOME-JAM-NOTICES.md`
-상태: 코드 완료. Rules·인덱스 배포와 PR 머지 대기.
+상태: 완료·배포. Rules·인덱스 배포 → 인덱스 READY 확인 → PR #7 머지(`1747bcb`) → Hosting 자동 배포.
 
 ## 결과
 
@@ -39,6 +39,8 @@
 
 ## 남은 일
 
-- 최신 main 폴더에서 `firebase deploy --only firestore`로 공지 Rules와 인덱스
-  `reservations(tag,startAt)`·`events(tag,startAt)`를 배포한 뒤 머지한다.
+- (완료) 브랜치 폴더에서 `firebase deploy --only firestore`로 공지 Rules와 인덱스
+  `reservations(tag,startAt)`·`events(tag,startAt)`를 배포했고, Firestore Admin API로 두 인덱스가
+  READY가 된 것을 확인한 뒤 머지했다. 운영 번들에 새 카드·공지 코드와 textarea 글꼴 수정이
+  들어간 것, `/notices`가 200으로 응답하는 것을 확인했다.
 - 운영진 계정으로 실제 공지를 올려 회원 화면에서 보이는지 확인한다.
